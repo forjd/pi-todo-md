@@ -3,51 +3,66 @@
 [![CI](https://img.shields.io/github/actions/workflow/status/forjd/pi-todo-md/ci.yml?branch=main&style=flat-square&label=ci)](https://github.com/forjd/pi-todo-md/actions/workflows/ci.yml)
 [![npm version](https://img.shields.io/npm/v/pi-todo-md?style=flat-square)](https://www.npmjs.com/package/pi-todo-md)
 
-A shareable [pi](https://www.npmjs.com/package/@mariozechner/pi-coding-agent) package that gives the agent a structured `todo_md` tool backed by a `TODO.md` file in the current repo.
-
-See [CONTRIBUTING.md](./CONTRIBUTING.md) for release conventions, trusted publishing notes, and debugging tips.
+A shareable [pi](https://www.npmjs.com/package/@mariozechner/pi-coding-agent) package that gives the agent a structured `todo_md` tool backed by a repo-local `TODO.md` file.
 
 ## What it does
 
-- finds `TODO.md` in the current directory or nearest parent directory
-- if no `TODO.md` exists yet, creates one at the repo root when inside git, otherwise in the current directory
-- exposes a structured tool instead of making the model edit `TODO.md` manually
-- keeps stable numeric task IDs by storing them as hidden HTML comments in the Markdown file
-- supports listing, adding, bulk-adding, renaming, checking, unchecking, removing, moving, and prioritizing tasks
-- adds an interactive `/todos` browser inside pi
+- manages `TODO.md` through a structured tool instead of ad-hoc file edits
+- finds the nearest `TODO.md` in the current directory or a parent directory
+- creates `TODO.md` at the git repo root when none exists yet
+- keeps stable task IDs with hidden HTML comments
+- supports sections, reordering, bulk add, rename, check/uncheck, and prioritize
+- adds an interactive `/todos [section]` browser inside pi
+
+## Install
+
+### From npm
+
+```bash
+pi install npm:pi-todo-md
+```
+
+### From a local checkout
+
+```bash
+pi install /absolute/path/to/pi-todo-md -l
+```
+
+## Quick start
+
+After installing, start `pi` in your project and ask things like:
+
+- `Show me the current todo list`
+- `Add a task to TODO.md to publish the plugin`
+- `Add these tasks to TODO.md: write docs, record demo, publish package`
+- `Rename task #2 to finish README polish`
+- `Mark task #2 as done`
+- `Move task #3 to In Progress`
+- `Prioritize task #5`
+- `/todos`
+- `/todos In Progress`
 
 ## Tool API
 
-The extension registers a tool named `todo_md` with this API:
+The extension registers a tool named `todo_md`.
 
-- `action: "list"`
-  - optional: `section`
-- `action: "add"`
-  - required: `text`
-  - optional: `section`, `index`
-- `action: "bulk_add"`
-  - required: `items`
-  - optional: `section`, `index`
-- `action: "check"`
-  - required: `id`
-- `action: "uncheck"`
-  - required: `id`
-- `action: "rename"`
-  - required: `id`, `text`
-- `action: "remove"`
-  - required: `id`
-- `action: "move"`
-  - required: `id`
-  - optional: `section`, `index`
-- `action: "prioritize"`
-  - required: `id`
-  - optional: `section`
+| Action | Required | Optional | Description |
+|---|---|---|---|
+| `list` | — | `section` | Show the current task list |
+| `add` | `text` | `section`, `index` | Add one task |
+| `bulk_add` | `items` | `section`, `index` | Add multiple tasks at once |
+| `check` | `id` | — | Mark a task done |
+| `uncheck` | `id` | — | Mark a task not done |
+| `rename` | `id`, `text` | — | Change task text |
+| `remove` | `id` | — | Delete a task |
+| `move` | `id` | `section`, `index` | Move a task to another section or position |
+| `prioritize` | `id` | `section` | Move a task to the top of a section |
 
-There is also a `/todos [section]` command that opens an interactive browser in pi.
+There is also a `/todos [section]` command for a quick interactive view.
 
 ## Managed file format
 
-`pi-todo-md` owns the `TODO.md` format and normalizes it to a canonical layout like this:
+`pi-todo-md` normalizes `TODO.md` into a canonical format like this:
 
 ```md
 # TODO
@@ -60,28 +75,29 @@ There is also a `/todos [section]` command that opens an interactive browser in 
 - [ ] package it for sharing <!-- pi-todo-md:id=3 -->
 ```
 
-The hidden `<!-- pi-todo-md:id=... -->` markers are how the tool keeps task IDs stable.
+The hidden `<!-- pi-todo-md:id=... -->` markers keep task IDs stable across edits.
 
-## Install
+## File placement rules
 
-### Install from a local checkout
+When the tool runs, it will:
 
-```bash
-pi install /absolute/path/to/pi-todo-md -l
-```
-
-### Install from npm later
-
-```bash
-pi install npm:pi-todo-md
-```
+1. use `TODO.md` in the current directory if present
+2. otherwise walk up parent directories looking for `TODO.md`
+3. if none exists, create one at the nearest git repo root
+4. if not inside a git repo, create one in the current directory
 
 ## Local development
 
-Run the package tests:
+Run the tests:
 
 ```bash
 npm test
+```
+
+Preview the publish tarball:
+
+```bash
+npm pack --dry-run
 ```
 
 Try the extension directly without installing it globally:
@@ -90,112 +106,14 @@ Try the extension directly without installing it globally:
 pi -e ./extensions/todo-md.js
 ```
 
-Or install the current checkout into another project:
+## Contributing
 
-```bash
-cd /path/to/your/project
-pi install /absolute/path/to/pi-todo-md -l
-```
+See [CONTRIBUTING.md](./CONTRIBUTING.md) for:
 
-Then start pi in that project and ask things like:
-
-- `Add a task to TODO.md to publish the plugin`
-- `Add these tasks to TODO.md: write docs, record demo, publish package`
-- `Show me the current todo list`
-- `Rename task #2 to finish README polish`
-- `Mark task #2 as done`
-- `Move task #3 to In Progress`
-- `Prioritize task #5`
-- `/todos`
-- `/todos In Progress`
-
-## Automated releases
-
-This repo includes GitHub Actions for CI and release automation.
-
-### CI
-
-`.github/workflows/ci.yml` runs on pushes to `main` and on pull requests. It:
-
-- runs `npm test`
-- runs `npm pack --dry-run`
-
-### Release Please flow
-
-`.github/workflows/release-please.yml` runs on every push to `main`.
-
-It uses **Release Please** to:
-
-- inspect conventional commits since the last release
-- open or update a release PR with the next version bump
-- generate changelog content for that release PR
-- create the git tag and GitHub release when the release PR is merged
-- publish the tagged version to npm
-- upload the release tarball to the GitHub release
-
-### Commit style for versioning
-
-Release Please uses conventional commits to decide the next version:
-
-- `fix:` → patch release
-- `feat:` → minor release
-- `feat!:` or `BREAKING CHANGE:` → major release
-
-Examples:
-
-```text
-feat: add archive_done action
-fix: preserve task IDs when normalizing legacy markdown
-feat!: change TODO.md section ordering rules
-```
-
-### One-time npm setup
-
-For seamless publishing, configure **npm trusted publishing** for:
-
-- GitHub repo: `forjd/pi-todo-md`
-- workflow filename: `release-please.yml`
-
-Use the workflow filename only in npm's UI, not the full `.github/workflows/...` path.
-That lets GitHub Actions publish to npm without a long-lived token or OTP prompts.
-
-If you prefer not to use trusted publishing, add an `NPM_TOKEN` repository secret instead.
-
-### Current trusted publishing status
-
-The repo is currently set up to publish through GitHub Actions without a long-lived npm token:
-
-- the release workflow has `id-token: write`
-- the publish job runs on Node 24 / npm 11
-- the repo currently has no `NPM_TOKEN` Actions secret
-- npm publishes include provenance attestations
-
-### Day-to-day release flow
-
-1. Merge normal PRs to `main` using conventional commit titles or squash messages.
-2. Let Release Please open or update the release PR.
-3. Review the generated version bump and changelog.
-4. Merge the release PR.
-5. GitHub Actions tags, releases, and publishes automatically.
-
-### Release debugging
-
-If a release PR merges but npm does not update, check these first:
-
-- the npm trusted publisher points to `forjd/pi-todo-md` and `release-please.yml`
-- the workflow still has `permissions.id-token: write`
-- the publish job is using Node 24+ and npm 11+
-- `package.json.repository.url` still matches `https://github.com/forjd/pi-todo-md.git`
-- there is no stale `NPM_TOKEN` secret overriding trusted publishing unintentionally
-- GitHub Actions logs show `Publishing with npm trusted publishing`
-
-Versions `0.1.2` and `0.1.3` were GitHub-only workflow-fix releases that did not land on npm. The first successful trusted-publishing release after `0.1.1` was `0.1.4`.
-
-## Notes
-
-- The extension uses pi's file mutation queue so concurrent file edits do not clobber each other.
-- A plain `list` can create or normalize `TODO.md` so the task IDs become stable.
-- The canonical file is easy to read and easy to commit.
+- release conventions
+- Release Please workflow details
+- npm trusted publishing setup
+- release debugging notes
 
 ## License
 
