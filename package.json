@@ -1,6 +1,6 @@
 {
   "name": "pi-todo-md",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "A shareable pi extension for managing a repo-local TODO.md file.",
   "type": "module",
   "main": "./extensions/todo-md.js",
