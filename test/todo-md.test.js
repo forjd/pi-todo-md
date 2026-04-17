@@ -50,6 +50,27 @@ test("add, list, check, uncheck, and remove work on a fresh TODO.md", async () =
   assert.doesNotMatch(markdown, /ship the plugin/);
 });
 
+test("next_task recommends the first useful open task", async () => {
+  const root = await makeTempDir();
+  const todoPath = join(root, "TODO.md");
+
+  await executeTodoActionOnFile(todoPath, { action: "add", text: "first task" });
+  await executeTodoActionOnFile(todoPath, { action: "add", text: "second task" });
+  await executeTodoActionOnFile(todoPath, { action: "check", id: 1 });
+  await executeTodoActionOnFile(todoPath, { action: "add_subtask", id: 2, text: "finish docs" });
+
+  let result = await executeTodoActionOnFile(todoPath, { action: "next_task" });
+  assert.match(result.message, /Next task: #2/);
+  assert.equal(result.details.affectedItem.id, 2);
+
+  result = await executeTodoActionOnFile(todoPath, { action: "next_task", section: "Tasks" });
+  assert.equal(result.details.affectedItem.id, 2);
+
+  await executeTodoActionOnFile(todoPath, { action: "check", id: 2 });
+  result = await executeTodoActionOnFile(todoPath, { action: "next_task" });
+  assert.match(result.message, /No open tasks found/);
+});
+
 test("rename and bulk_add support richer task updates", async () => {
   const root = await makeTempDir();
   const todoPath = join(root, "TODO.md");

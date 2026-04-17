@@ -35,6 +35,7 @@ After installing, start `pi` in your project and ask things like:
 - `Show me the current todo list`
 - `Add a task to TODO.md to publish the plugin`
 - `Add these tasks to TODO.md: write docs, record demo, publish package`
+- `What should I work on next from TODO.md?`
 - `Rename task #2 to finish README polish`
 - `Add a note to task #2 saying publish after the docs land`
 - `Add subtasks to #2 for writing docs and publishing the package`
@@ -52,6 +53,7 @@ The extension registers a tool named `todo_md`.
 | Action | Required | Optional | Description |
 |---|---|---|---|
 | `list` | — | `section` | Show the current task list |
+| `next_task` | — | `section` | Recommend the next open task |
 | `add` | `text` | `section`, `index` | Add one task |
 | `bulk_add` | `items` | `section`, `index` | Add multiple tasks at once |
 | `check` | `id` | — | Mark a task done |

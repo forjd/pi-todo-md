@@ -200,6 +200,54 @@ function buildTaskView(item, sectionName) {
   };
 }
 
+function countOpenSubtasks(item) {
+  return (item.subtasks ?? []).filter((subtask) => !subtask.checked).length;
+}
+
+function recommendNextTask(document, options = {}) {
+  const filterSection = options.section ? normalizeSectionName(options.section) : undefined;
+  let best;
+
+  document.sections.forEach((section, sectionIndex) => {
+    if (section.name.toLowerCase() === ARCHIVE_SECTION.toLowerCase()) return;
+    if (filterSection && section.name.toLowerCase() !== filterSection.toLowerCase()) return;
+
+    section.items.forEach((item, itemIndex) => {
+      if (item.checked) return;
+
+      const candidate = {
+        ...buildTaskView(item, section.name),
+        openSubtasks: countOpenSubtasks(item),
+        sectionIndex,
+        itemIndex,
+      };
+
+      if (!best) {
+        best = candidate;
+        return;
+      }
+
+      const bestHasOpenSubtasks = best.openSubtasks > 0;
+      const candidateHasOpenSubtasks = candidate.openSubtasks > 0;
+      if (candidateHasOpenSubtasks && !bestHasOpenSubtasks) {
+        best = candidate;
+        return;
+      }
+      if (candidateHasOpenSubtasks === bestHasOpenSubtasks) {
+        if (candidate.sectionIndex < best.sectionIndex) {
+          best = candidate;
+          return;
+        }
+        if (candidate.sectionIndex === best.sectionIndex && candidate.itemIndex < best.itemIndex) {
+          best = candidate;
+        }
+      }
+    });
+  });
+
+  return best;
+}
+
 function buildSectionView(section) {
   const items = section.items.map((item) => buildTaskView(item, section.name));
   const open = items.filter((item) => !item.checked).length;
@@ -421,6 +469,32 @@ export function applyTodoAction(document, params) {
         filterSection,
         message: formatListMessage(sections, counts, filterSection),
         sections,
+      });
+    }
+
+    case "next_task": {
+      const recommendation = recommendNextTask(workingDocument, { section: params.section });
+      const filterSection = params.section ? normalizeSectionName(params.section) : undefined;
+
+      if (!recommendation) {
+        return createActionResult(workingDocument, action, {
+          changed: false,
+          filterSection,
+          message: filterSection
+            ? `No open tasks found in ${filterSection}.`
+            : "No open tasks found.",
+        });
+      }
+
+      const subtaskSuffix = recommendation.openSubtasks > 0
+        ? ` (${recommendation.openSubtasks} open subtask${recommendation.openSubtasks === 1 ? "" : "s"})`
+        : "";
+
+      return createActionResult(workingDocument, action, {
+        changed: false,
+        filterSection,
+        message: `Next task: #${recommendation.id} in ${recommendation.section}: ${recommendation.text}${subtaskSuffix}`,
+        affectedItem: recommendation,
       });
     }
 

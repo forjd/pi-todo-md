@@ -9,6 +9,7 @@ import { ARCHIVE_SECTION, executeTodoActionOnFile, locateTodoFile, sanitizeSingl
 
 const TODO_ACTIONS = [
   "list",
+  "next_task",
   "add",
   "bulk_add",
   "check",
@@ -391,12 +392,13 @@ export default function (pi) {
     name: "todo_md",
     label: "TODO.md",
     description:
-      "Manage the project's TODO.md file with a structured API. Actions: list, add, bulk_add, rename, set_note, append_note, clear_note, add_subtask, check_subtask, uncheck_subtask, remove_subtask, check, uncheck, remove, move, prioritize, archive_done.",
+      "Manage the project's TODO.md file with a structured API. Actions: list, next_task, add, bulk_add, rename, set_note, append_note, clear_note, add_subtask, check_subtask, uncheck_subtask, remove_subtask, check, uncheck, remove, move, prioritize, archive_done.",
     promptSnippet:
       "Use todo_md to manage the project's TODO.md file instead of editing the file directly.",
     promptGuidelines: [
       "Use todo_md when the user asks to manage the project task list or TODO.md.",
       "Use action='list' before mutating tasks when you need the current task IDs, notes, subtasks, or section names.",
+      "Use action='next_task' when the user asks what to work on next.",
       "Use action='bulk_add' when the user gives you multiple tasks at once.",
       "Use note and subtask actions instead of rewriting TODO.md by hand.",
       `Use action='archive_done' to move completed tasks into ${ARCHIVE_SECTION}.`,
