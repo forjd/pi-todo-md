@@ -1,3 +1,4 @@
+import { readFile } from "node:fs/promises";
 import { relative } from "node:path";
 
 import { StringEnum } from "@mariozechner/pi-ai";
@@ -5,7 +6,14 @@ import { withFileMutationQueue } from "@mariozechner/pi-coding-agent";
 import { matchesKey, Text, truncateToWidth } from "@mariozechner/pi-tui";
 import { Type } from "@sinclair/typebox";
 
-import { ARCHIVE_SECTION, executeTodoActionOnFile, locateTodoFile, sanitizeSingleLine } from "../src/todo-md.js";
+import {
+  ARCHIVE_SECTION,
+  buildTodoContextSummary,
+  executeTodoActionOnFile,
+  locateTodoFile,
+  parseTodoMarkdown,
+  sanitizeSingleLine,
+} from "../src/todo-md.js";
 
 const TODO_ACTIONS = [
   "list",
@@ -190,6 +198,10 @@ function styleLine(theme, tone, text) {
     default:
       return theme.fg("muted", text);
   }
+}
+
+function shouldInjectTodoContext(prompt) {
+  return /\b(todo|next|continue|focus|focused|priority|prioritize|plan|planning|status|work on)\b/i.test(prompt);
 }
 
 class TodoListComponent {
@@ -434,6 +446,28 @@ export default function (pi) {
   async function refreshList(ctx, section) {
     return runTodo(ctx, { action: "list", section });
   }
+
+  pi.on("before_agent_start", async (event, ctx) => {
+    if (!shouldInjectTodoContext(event.prompt)) return;
+
+    const todoPath = await locateTodoFile(ctx.cwd);
+    let markdown = "";
+    try {
+      markdown = await readFile(todoPath, "utf8");
+    } catch (error) {
+      if (!error || error.code !== "ENOENT") throw error;
+      return;
+    }
+
+    const summary = buildTodoContextSummary(parseTodoMarkdown(markdown), {
+      path: formatDisplayPath(todoPath, ctx.cwd),
+    });
+    if (!summary) return;
+
+    return {
+      systemPrompt: `${event.systemPrompt}\n\nProject todo context:\n${summary}\nUse todo_md for task management instead of editing TODO.md directly.`,
+    };
+  });
 
   pi.registerTool({
     name: "todo_md",

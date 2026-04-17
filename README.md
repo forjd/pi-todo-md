@@ -13,6 +13,7 @@ A shareable [pi](https://www.npmjs.com/package/@mariozechner/pi-coding-agent) pa
 - keeps stable task IDs with hidden HTML comments
 - supports sections, reordering, bulk add, rename, focus mode, priority metadata, notes, subtasks, check/uncheck, archive, and prioritize
 - adds an interactive `/todos [section]` browser inside pi with keyboard actions
+- injects a compact active-task summary into relevant agent turns so pi can stay aligned with the current working set
 
 ## Install
 

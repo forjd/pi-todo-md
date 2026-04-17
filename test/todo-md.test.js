@@ -4,7 +4,13 @@ import { mkdtemp, mkdir, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { ARCHIVE_SECTION, executeTodoActionOnFile, locateTodoFile } from "../src/todo-md.js";
+import {
+  ARCHIVE_SECTION,
+  buildTodoContextSummary,
+  executeTodoActionOnFile,
+  locateTodoFile,
+  parseTodoMarkdown,
+} from "../src/todo-md.js";
 
 async function makeTempDir() {
   return mkdtemp(join(tmpdir(), "pi-todo-md-"));
@@ -93,6 +99,16 @@ test("focus mode marks tasks and affects recommendations", async () => {
 
   result = await executeTodoActionOnFile(todoPath, { action: "unfocus_task", id: 2 });
   assert.equal(getSection(result, "Tasks").items[1].focused, false);
+});
+
+test("context summaries include focused tasks and the next recommendation", async () => {
+  const document = parseTodoMarkdown(`# TODO\n\n## Tasks\n- [ ] ship plugin [focus] [high] <!-- pi-todo-md:id=1 -->\n  - [ ] write docs\n- [ ] publish package <!-- pi-todo-md:id=2 -->\n`);
+
+  const summary = buildTodoContextSummary(document, { path: "TODO.md" });
+  assert.match(summary, /TODO\.md \(TODO\.md\)/);
+  assert.match(summary, /Focused tasks:/);
+  assert.match(summary, /#1 ship plugin \[focus\] \[high\]/);
+  assert.match(summary, /Next task: #1 ship plugin \[focus\] \[high\]/);
 });
 
 test("priority metadata round-trips and influences next_task", async () => {

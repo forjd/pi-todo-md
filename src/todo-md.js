@@ -260,7 +260,7 @@ function countOpenSubtasks(item) {
   return (item.subtasks ?? []).filter((subtask) => !subtask.checked).length;
 }
 
-function recommendNextTask(document, options = {}) {
+export function recommendNextTask(document, options = {}) {
   const filterSection = options.section ? normalizeSectionName(options.section) : undefined;
   let best;
 
@@ -321,6 +321,50 @@ function recommendNextTask(document, options = {}) {
   });
 
   return best;
+}
+
+export function getFocusedTasks(document, options = {}) {
+  const limit = options.limit ?? Infinity;
+  const tasks = [];
+
+  for (const section of document.sections) {
+    if (section.name.toLowerCase() === ARCHIVE_SECTION.toLowerCase()) continue;
+    for (const item of section.items) {
+      if (!item.focused || item.checked) continue;
+      tasks.push(buildTaskView(item, section.name));
+      if (tasks.length >= limit) return tasks;
+    }
+  }
+
+  return tasks;
+}
+
+export function buildTodoContextSummary(document, options = {}) {
+  const path = options.path ?? TODO_FILE_NAME;
+  const focusedTasks = getFocusedTasks(document, { limit: options.maxFocused ?? 3 });
+  const nextTask = recommendNextTask(document, options.section ? { section: options.section } : undefined);
+  const sections = document.sections.map(buildSectionView);
+  const counts = summarizeSections(sections);
+
+  if (counts.total === 0) return undefined;
+
+  const lines = [`TODO.md (${path})`, `${counts.open} open, ${counts.done} done`];
+
+  if (focusedTasks.length > 0) {
+    lines.push("Focused tasks:");
+    for (const task of focusedTasks) {
+      lines.push(`- #${task.id} ${task.text}${renderTaskMetadata(task)}`);
+    }
+  }
+
+  if (nextTask) {
+    const subtaskSuffix = nextTask.openSubtasks > 0
+      ? `; ${nextTask.openSubtasks} open subtask${nextTask.openSubtasks === 1 ? "" : "s"}`
+      : "";
+    lines.push(`Next task: #${nextTask.id} ${nextTask.text}${renderTaskMetadata(nextTask)} (${nextTask.section}${subtaskSuffix})`);
+  }
+
+  return lines.join("\n");
 }
 
 function buildSectionView(section) {
