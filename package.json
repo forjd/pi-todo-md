@@ -30,11 +30,7 @@
   "scripts": {
     "build": "echo 'nothing to build'",
     "check": "node --test",
-    "test": "node --test",
-    "preversion": "npm test && npm pack --dry-run",
-    "release:patch": "npm version patch && git push --follow-tags",
-    "release:minor": "npm version minor && git push --follow-tags",
-    "release:major": "npm version major && git push --follow-tags"
+    "test": "node --test"
   },
   "publishConfig": {
     "access": "public"

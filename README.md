@@ -1,5 +1,8 @@
 # pi-todo-md
 
+[![CI](https://img.shields.io/github/actions/workflow/status/forjd/pi-todo-md/ci.yml?branch=main&style=flat-square&label=ci)](https://github.com/forjd/pi-todo-md/actions/workflows/ci.yml)
+[![npm version](https://img.shields.io/npm/v/pi-todo-md?style=flat-square)](https://www.npmjs.com/package/pi-todo-md)
+
 A shareable [pi](https://www.npmjs.com/package/@mariozechner/pi-coding-agent) package that gives the agent a structured `todo_md` tool backed by a `TODO.md` file in the current repo.
 
 ## What it does
@@ -106,7 +109,7 @@ Then start pi in that project and ask things like:
 
 ## Automated releases
 
-This repo includes GitHub Actions for CI and releases.
+This repo includes GitHub Actions for CI and release automation.
 
 ### CI
 
@@ -115,47 +118,53 @@ This repo includes GitHub Actions for CI and releases.
 - runs `npm test`
 - runs `npm pack --dry-run`
 
-### Release flow
+### Release Please flow
 
-`.github/workflows/release.yml` runs when you push a semver tag like `v0.1.2`. It:
+`.github/workflows/release-please.yml` runs on every push to `main`.
 
-- verifies the tag matches `package.json`
-- runs `npm test`
-- builds the publish tarball
-- publishes to npm
-- creates a GitHub release with generated notes
+It uses **Release Please** to:
 
-### Recommended npm setup
+- inspect conventional commits since the last release
+- open or update a release PR with the next version bump
+- generate changelog content for that release PR
+- create the git tag and GitHub release when the release PR is merged
+- publish the tagged version to npm
+- upload the release tarball to the GitHub release
 
-Use **npm trusted publishing** for the smoothest release flow.
+### Commit style for versioning
 
-In npm package settings for `pi-todo-md`, add a trusted publisher for:
+Release Please uses conventional commits to decide the next version:
+
+- `fix:` → patch release
+- `feat:` → minor release
+- `feat!:` or `BREAKING CHANGE:` → major release
+
+Examples:
+
+```text
+feat: add archive_done action
+fix: preserve task IDs when normalizing legacy markdown
+feat!: change TODO.md section ordering rules
+```
+
+### One-time npm setup
+
+For seamless publishing, configure **npm trusted publishing** for:
 
 - GitHub repo: `forjd/pi-todo-md`
-- workflow: `.github/workflows/release.yml`
+- workflow: `.github/workflows/release-please.yml`
 
 That lets GitHub Actions publish to npm without a long-lived token or OTP prompts.
 
-If you do not want trusted publishing, add an `NPM_TOKEN` repository secret instead.
+If you prefer not to use trusted publishing, add an `NPM_TOKEN` repository secret instead.
 
-### Releasing
+### Day-to-day release flow
 
-After your changes are merged to `main`, run one of:
-
-```bash
-npm run release:patch
-npm run release:minor
-npm run release:major
-```
-
-Those commands:
-
-- run release checks via `preversion`
-- bump `package.json`
-- create a git commit and semver tag
-- push commit + tag to GitHub
-
-Once the tag reaches GitHub, the release workflow publishes to npm and creates the GitHub release automatically.
+1. Merge normal PRs to `main` using conventional commit titles or squash messages.
+2. Let Release Please open or update the release PR.
+3. Review the generated version bump and changelog.
+4. Merge the release PR.
+5. GitHub Actions tags, releases, and publishes automatically.
 
 ## Notes
 
