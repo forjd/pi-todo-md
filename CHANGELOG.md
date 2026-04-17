@@ -2,6 +2,14 @@
 
 > Note: GitHub releases `0.1.2` and `0.1.3` were workflow-fix releases during trusted-publishing setup and were not published to npm. The first successful trusted-publishing npm release after `0.1.1` was `0.1.4`.
 
+## [0.2.0](https://github.com/forjd/pi-todo-md/compare/v0.1.4...v0.2.0) (2026-04-17)
+
+
+### Features
+
+* add next task recommendations ([68ae9a3](https://github.com/forjd/pi-todo-md/commit/68ae9a332c9a0935eeb932c6d07701759c26a378))
+* add notes, subtasks, and archive actions ([9bd1664](https://github.com/forjd/pi-todo-md/commit/9bd1664bdb3781c2b0b7b29df3d0060cef8e5ed6))
+
 ## [0.1.4](https://github.com/forjd/pi-todo-md/compare/v0.1.3...v0.1.4) (2026-04-17)
 
 
