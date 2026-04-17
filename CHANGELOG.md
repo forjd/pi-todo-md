@@ -2,6 +2,14 @@
 
 > Note: GitHub releases `0.1.2` and `0.1.3` were workflow-fix releases during trusted-publishing setup and were not published to npm. The first successful trusted-publishing npm release after `0.1.1` was `0.1.4`.
 
+## [0.4.0](https://github.com/forjd/pi-todo-md/compare/v0.3.0...v0.4.0) (2026-04-17)
+
+
+### Features
+
+* add hidden todo schema metadata ([d52313c](https://github.com/forjd/pi-todo-md/commit/d52313cc2a93fd13e754eb9399aa5e4fa9636d9e))
+* inject todo context into relevant prompts ([d920630](https://github.com/forjd/pi-todo-md/commit/d9206302871b1d5b70165101b8cc1a2e3fbb5c14))
+
 ## [0.3.0](https://github.com/forjd/pi-todo-md/compare/v0.2.0...v0.3.0) (2026-04-17)
 
 
