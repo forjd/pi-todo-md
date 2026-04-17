@@ -12,6 +12,14 @@
   "engines": {
     "node": ">=20"
   },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/forjd/pi-todo-md.git"
+  },
+  "bugs": {
+    "url": "https://github.com/forjd/pi-todo-md/issues"
+  },
+  "homepage": "https://github.com/forjd/pi-todo-md#readme",
   "license": "MIT",
   "keywords": ["pi-package", "pi-extension", "todo", "markdown"],
   "files": ["extensions", "src", "README.md", "LICENSE"],
