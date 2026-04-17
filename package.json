@@ -1,6 +1,6 @@
 {
   "name": "pi-todo-md",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "A shareable pi extension for managing a repo-local TODO.md file.",
   "type": "module",
   "main": "./extensions/todo-md.js",
@@ -21,10 +21,23 @@
   },
   "homepage": "https://github.com/forjd/pi-todo-md#readme",
   "license": "MIT",
-  "keywords": ["pi-package", "pi", "pi-extension", "todo", "markdown"],
-  "files": ["extensions", "src", "README.md", "LICENSE"],
+  "keywords": [
+    "pi-package",
+    "pi",
+    "pi-extension",
+    "todo",
+    "markdown"
+  ],
+  "files": [
+    "extensions",
+    "src",
+    "README.md",
+    "LICENSE"
+  ],
   "pi": {
-    "extensions": ["./extensions/todo-md.js"],
+    "extensions": [
+      "./extensions/todo-md.js"
+    ],
     "image": "https://raw.githubusercontent.com/forjd/pi-todo-md/main/.github/social-preview.png"
   },
   "scripts": {
