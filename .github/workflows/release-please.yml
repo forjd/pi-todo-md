@@ -44,12 +44,11 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v5
         with:
-          node-version: '22'
+          node-version: '24'
           registry-url: https://registry.npmjs.org
 
-      - name: Upgrade npm for trusted publishing
+      - name: Show runtime versions
         run: |
-          npm install -g npm@latest
           node --version
           npm --version
 
