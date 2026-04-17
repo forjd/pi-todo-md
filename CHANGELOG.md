@@ -2,6 +2,15 @@
 
 > Note: GitHub releases `0.1.2` and `0.1.3` were workflow-fix releases during trusted-publishing setup and were not published to npm. The first successful trusted-publishing npm release after `0.1.1` was `0.1.4`.
 
+## [0.3.0](https://github.com/forjd/pi-todo-md/compare/v0.2.0...v0.3.0) (2026-04-17)
+
+
+### Features
+
+* add focus mode for active tasks ([930e11a](https://github.com/forjd/pi-todo-md/commit/930e11acdc0cf93e2cc231591602c13a55b05778))
+* add section management actions ([5aa754a](https://github.com/forjd/pi-todo-md/commit/5aa754a79b5d7b514fb7b3744ca8e3aea4325eb9))
+* add task priority metadata ([83969b3](https://github.com/forjd/pi-todo-md/commit/83969b30088a9bc8050bb4e2e661efe970ec9744))
+
 ## [0.2.0](https://github.com/forjd/pi-todo-md/compare/v0.1.4...v0.2.0) (2026-04-17)
 
 
