@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.3](https://github.com/forjd/pi-todo-md/compare/v0.1.2...v0.1.3) (2026-04-17)
+
+
+### Bug Fixes
+
+* upgrade npm before trusted publish ([ed2eac0](https://github.com/forjd/pi-todo-md/commit/ed2eac0d0cb7ff499b324089b3ed7340eb288d76))
+
 ## [0.1.2](https://github.com/forjd/pi-todo-md/compare/v0.1.1...v0.1.2) (2026-04-17)
 
 
