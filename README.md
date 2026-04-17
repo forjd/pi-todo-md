@@ -104,14 +104,58 @@ Then start pi in that project and ask things like:
 - `/todos`
 - `/todos In Progress`
 
-## Publish checklist
+## Automated releases
 
-Before publishing to npm for real, you should:
+This repo includes GitHub Actions for CI and releases.
 
-- pick the final package name if `pi-todo-md` is already taken
-- add your real repository/homepage metadata to `package.json`
-- run `npm pack --dry-run`
-- publish with `npm publish`
+### CI
+
+`.github/workflows/ci.yml` runs on pushes to `main` and on pull requests. It:
+
+- runs `npm test`
+- runs `npm pack --dry-run`
+
+### Release flow
+
+`.github/workflows/release.yml` runs when you push a semver tag like `v0.1.2`. It:
+
+- verifies the tag matches `package.json`
+- runs `npm test`
+- builds the publish tarball
+- publishes to npm
+- creates a GitHub release with generated notes
+
+### Recommended npm setup
+
+Use **npm trusted publishing** for the smoothest release flow.
+
+In npm package settings for `pi-todo-md`, add a trusted publisher for:
+
+- GitHub repo: `forjd/pi-todo-md`
+- workflow: `.github/workflows/release.yml`
+
+That lets GitHub Actions publish to npm without a long-lived token or OTP prompts.
+
+If you do not want trusted publishing, add an `NPM_TOKEN` repository secret instead.
+
+### Releasing
+
+After your changes are merged to `main`, run one of:
+
+```bash
+npm run release:patch
+npm run release:minor
+npm run release:major
+```
+
+Those commands:
+
+- run release checks via `preversion`
+- bump `package.json`
+- create a git commit and semver tag
+- push commit + tag to GitHub
+
+Once the tag reaches GitHub, the release workflow publishes to npm and creates the GitHub release automatically.
 
 ## Notes
 
