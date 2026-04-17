@@ -5,6 +5,8 @@
 
 A shareable [pi](https://www.npmjs.com/package/@mariozechner/pi-coding-agent) package that gives the agent a structured `todo_md` tool backed by a `TODO.md` file in the current repo.
 
+See [CONTRIBUTING.md](./CONTRIBUTING.md) for release conventions, trusted publishing notes, and debugging tips.
+
 ## What it does
 
 - finds `TODO.md` in the current directory or nearest parent directory
@@ -159,6 +161,15 @@ That lets GitHub Actions publish to npm without a long-lived token or OTP prompt
 
 If you prefer not to use trusted publishing, add an `NPM_TOKEN` repository secret instead.
 
+### Current trusted publishing status
+
+The repo is currently set up to publish through GitHub Actions without a long-lived npm token:
+
+- the release workflow has `id-token: write`
+- the publish job runs on Node 24 / npm 11
+- the repo currently has no `NPM_TOKEN` Actions secret
+- npm publishes include provenance attestations
+
 ### Day-to-day release flow
 
 1. Merge normal PRs to `main` using conventional commit titles or squash messages.
@@ -166,6 +177,19 @@ If you prefer not to use trusted publishing, add an `NPM_TOKEN` repository secre
 3. Review the generated version bump and changelog.
 4. Merge the release PR.
 5. GitHub Actions tags, releases, and publishes automatically.
+
+### Release debugging
+
+If a release PR merges but npm does not update, check these first:
+
+- the npm trusted publisher points to `forjd/pi-todo-md` and `release-please.yml`
+- the workflow still has `permissions.id-token: write`
+- the publish job is using Node 24+ and npm 11+
+- `package.json.repository.url` still matches `https://github.com/forjd/pi-todo-md.git`
+- there is no stale `NPM_TOKEN` secret overriding trusted publishing unintentionally
+- GitHub Actions logs show `Publishing with npm trusted publishing`
+
+Versions `0.1.2` and `0.1.3` were GitHub-only workflow-fix releases that did not land on npm. The first successful trusted-publishing release after `0.1.1` was `0.1.4`.
 
 ## Notes
 

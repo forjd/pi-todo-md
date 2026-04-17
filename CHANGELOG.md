@@ -1,5 +1,7 @@
 # Changelog
 
+> Note: GitHub releases `0.1.2` and `0.1.3` were workflow-fix releases during trusted-publishing setup and were not published to npm. The first successful trusted-publishing npm release after `0.1.1` was `0.1.4`.
+
 ## [0.1.4](https://github.com/forjd/pi-todo-md/compare/v0.1.3...v0.1.4) (2026-04-17)
 
 
