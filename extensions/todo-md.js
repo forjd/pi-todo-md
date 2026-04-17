@@ -18,6 +18,8 @@ const TODO_ACTIONS = [
   "rename",
   "focus_task",
   "unfocus_task",
+  "set_priority",
+  "clear_priority",
   "set_note",
   "append_note",
   "clear_note",
@@ -37,6 +39,7 @@ const TodoMdParams = Type.Object({
   items: Type.Optional(Type.Array(Type.String(), { description: "Task texts for bulk_add" })),
   id: Type.Optional(Type.Integer({ description: "Task id for task-level actions" })),
   subtask: Type.Optional(Type.Integer({ description: "1-based subtask number for subtask actions" })),
+  priority: Type.Optional(StringEnum(["low", "medium", "high"])),
   section: Type.Optional(Type.String({ description: "Section name for add, bulk_add, move, prioritize, archive_done, or list filtering" })),
   index: Type.Optional(Type.Integer({ description: "1-based position within the target section for add, bulk_add, or move" })),
 });
@@ -57,8 +60,11 @@ function findTaskInDetails(details, id) {
 }
 
 function formatTaskLabel(item) {
-  const focusTag = item.focused ? " [focus]" : "";
-  return `${item.text}${focusTag}`;
+  const markers = [];
+  if (item.focused) markers.push("[focus]");
+  if (item.priority) markers.push(`[${item.priority}]`);
+  const suffix = markers.length > 0 ? ` ${markers.join(" ")}` : "";
+  return `${item.text}${suffix}`;
 }
 
 function buildSectionList(details, options = {}) {
@@ -125,6 +131,7 @@ function buildBrowserRows(details, showDone) {
         id: item.id,
         checked: item.checked,
         focused: Boolean(item.focused),
+        priority: item.priority,
         section: section.name,
         text: formatTaskLabel(item),
         notes: item.notes ?? [],
@@ -297,6 +304,26 @@ class TodoListComponent {
       return;
     }
 
+    if ((data === "h" || data === "H") && selected.kind === "task") {
+      this.submit({ type: "set_priority", id: selected.id, priority: "high" });
+      return;
+    }
+
+    if ((data === "m" || data === "M") && selected.kind === "task") {
+      this.submit({ type: "set_priority", id: selected.id, priority: "medium" });
+      return;
+    }
+
+    if ((data === "l" || data === "L") && selected.kind === "task") {
+      this.submit({ type: "set_priority", id: selected.id, priority: "low" });
+      return;
+    }
+
+    if (data === "0" && selected.kind === "task") {
+      this.submit({ type: "clear_priority", id: selected.id });
+      return;
+    }
+
     if ((data === "r" || data === "R") && selected.kind === "task") {
       this.submit({ type: "rename_task", id: selected.id });
       return;
@@ -374,8 +401,9 @@ class TodoListComponent {
     }
 
     lines.push("");
-    lines.push(truncateToWidth(theme.fg("dim", "↑↓/j/k move • x toggle • f focus • r rename • n note • s subtask"), width));
-    lines.push(truncateToWidth(theme.fg("dim", "p prioritize • d delete • a archive done • o toggle done • Enter/q/Esc close"), width));
+    lines.push(truncateToWidth(theme.fg("dim", "↑↓/j/k move • x toggle • f focus • h/m/l set priority • 0 clear"), width));
+    lines.push(truncateToWidth(theme.fg("dim", "r rename • n note • s subtask • p prioritize • d delete • a archive • o done"), width));
+    lines.push(truncateToWidth(theme.fg("dim", "Enter/q/Esc close"), width));
     lines.push("");
 
     this.cachedWidth = width;
@@ -406,7 +434,7 @@ export default function (pi) {
     name: "todo_md",
     label: "TODO.md",
     description:
-      "Manage the project's TODO.md file with a structured API. Actions: list, list_focused, next_task, add, bulk_add, rename, focus_task, unfocus_task, set_note, append_note, clear_note, add_subtask, check_subtask, uncheck_subtask, remove_subtask, check, uncheck, remove, move, prioritize, archive_done.",
+      "Manage the project's TODO.md file with a structured API. Actions: list, list_focused, next_task, add, bulk_add, rename, focus_task, unfocus_task, set_priority, clear_priority, set_note, append_note, clear_note, add_subtask, check_subtask, uncheck_subtask, remove_subtask, check, uncheck, remove, move, prioritize, archive_done.",
     promptSnippet:
       "Use todo_md to manage the project's TODO.md file instead of editing the file directly.",
     promptGuidelines: [
@@ -415,6 +443,7 @@ export default function (pi) {
       "Use action='list_focused' when the user asks to see the active working set.",
       "Use action='next_task' when the user asks what to work on next.",
       "Use action='focus_task' or 'unfocus_task' to mark what is actively being worked on.",
+      "Use action='set_priority' or 'clear_priority' to add semantic urgency to a task.",
       "Use action='bulk_add' when the user gives you multiple tasks at once.",
       "Use note and subtask actions instead of rewriting TODO.md by hand.",
       `Use action='archive_done' to move completed tasks into ${ARCHIVE_SECTION}.`,
@@ -433,6 +462,7 @@ export default function (pi) {
       const parts = [theme.fg("toolTitle", theme.bold("todo_md ")), theme.fg("muted", args.action)];
       if (args.id !== undefined) parts.push(` ${theme.fg("accent", `#${args.id}`)}`);
       if (args.subtask !== undefined) parts.push(` ${theme.fg("accent", `subtask:${args.subtask}`)}`);
+      if (args.priority) parts.push(` ${theme.fg("accent", `[${args.priority}]`)}`);
       if (args.section) parts.push(` ${theme.fg("accent", `[${args.section}]`)}`);
       if (args.index !== undefined) parts.push(` ${theme.fg("dim", `@${args.index}`)}`);
       if (args.items?.length) parts.push(` ${theme.fg("dim", `${args.items.length} item(s)`)}`);
@@ -505,6 +535,12 @@ export default function (pi) {
             break;
           case "unfocus_task":
             mutationResult = await runTodo(ctx, { action: "unfocus_task", id: action.id });
+            break;
+          case "set_priority":
+            mutationResult = await runTodo(ctx, { action: "set_priority", id: action.id, priority: action.priority });
+            break;
+          case "clear_priority":
+            mutationResult = await runTodo(ctx, { action: "clear_priority", id: action.id });
             break;
           case "uncheck_task":
             mutationResult = await runTodo(ctx, { action: "uncheck", id: action.id });

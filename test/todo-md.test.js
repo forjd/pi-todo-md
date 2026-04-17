@@ -95,6 +95,28 @@ test("focus mode marks tasks and affects recommendations", async () => {
   assert.equal(getSection(result, "Tasks").items[1].focused, false);
 });
 
+test("priority metadata round-trips and influences next_task", async () => {
+  const root = await makeTempDir();
+  const todoPath = join(root, "TODO.md");
+
+  await executeTodoActionOnFile(todoPath, { action: "add", text: "first task" });
+  await executeTodoActionOnFile(todoPath, { action: "add", text: "second task" });
+  await executeTodoActionOnFile(todoPath, { action: "set_priority", id: 2, priority: "high" });
+
+  let result = await executeTodoActionOnFile(todoPath, { action: "next_task" });
+  assert.equal(result.details.affectedItem.id, 2);
+  assert.equal(result.details.affectedItem.priority, "high");
+
+  let markdown = await readFile(todoPath, "utf8");
+  assert.match(markdown, /second task \[high\] <!-- pi-todo-md:id=2 -->/);
+
+  result = await executeTodoActionOnFile(todoPath, { action: "clear_priority", id: 2 });
+  assert.equal(getSection(result, "Tasks").items[1].priority, undefined);
+
+  markdown = await readFile(todoPath, "utf8");
+  assert.doesNotMatch(markdown, /\[high\]/);
+});
+
 test("rename and bulk_add support richer task updates", async () => {
   const root = await makeTempDir();
   const todoPath = join(root, "TODO.md");

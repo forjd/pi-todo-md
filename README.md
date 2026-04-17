@@ -11,7 +11,7 @@ A shareable [pi](https://www.npmjs.com/package/@mariozechner/pi-coding-agent) pa
 - finds the nearest `TODO.md` in the current directory or a parent directory
 - creates `TODO.md` at the git repo root when none exists yet
 - keeps stable task IDs with hidden HTML comments
-- supports sections, reordering, bulk add, rename, focus mode, notes, subtasks, check/uncheck, archive, and prioritize
+- supports sections, reordering, bulk add, rename, focus mode, priority metadata, notes, subtasks, check/uncheck, archive, and prioritize
 - adds an interactive `/todos [section]` browser inside pi with keyboard actions
 
 ## Install
@@ -37,6 +37,7 @@ After installing, start `pi` in your project and ask things like:
 - `Add these tasks to TODO.md: write docs, record demo, publish package`
 - `What should I work on next from TODO.md?`
 - `Focus task #2 and show me the current focus list`
+- `Mark task #3 as high priority`
 - `Rename task #2 to finish README polish`
 - `Add a note to task #2 saying publish after the docs land`
 - `Add subtasks to #2 for writing docs and publishing the package`
@@ -63,6 +64,8 @@ The extension registers a tool named `todo_md`.
 | `rename` | `id`, `text` | — | Change task text |
 | `focus_task` | `id` | — | Mark a task as part of the active working set |
 | `unfocus_task` | `id` | — | Remove a task from the active working set |
+| `set_priority` | `id`, `priority` | — | Set priority to `low`, `medium`, or `high` |
+| `clear_priority` | `id` | — | Remove priority metadata |
 | `set_note` | `id`, `text` | — | Replace a task's note text |
 | `append_note` | `id`, `text` | — | Append note line(s) to a task |
 | `clear_note` | `id` | — | Remove all notes from a task |
@@ -80,6 +83,7 @@ There is also a `/todos [section]` command for an interactive view. Inside the b
 - `↑↓` or `j/k` to move
 - `x` to toggle the selected task or subtask
 - `f` to focus or unfocus the selected task
+- `h`, `m`, `l`, or `0` to set high, medium, low, or no priority
 - `r` to rename a task
 - `n` to edit a task note
 - `s` to add a subtask
@@ -96,7 +100,7 @@ There is also a `/todos [section]` command for an interactive view. Inside the b
 # TODO
 
 ## Tasks
-- [ ] ship the plugin [focus] <!-- pi-todo-md:id=1 -->
+- [ ] ship the plugin [focus] [high] <!-- pi-todo-md:id=1 -->
   - note: publish after trusted publishing works
   - [ ] write docs
   - [ ] publish package

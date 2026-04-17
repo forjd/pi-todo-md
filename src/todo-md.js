@@ -16,6 +16,7 @@ function cloneDocument(document) {
       items: section.items.map((item) => ({
         ...item,
         focused: Boolean(item.focused),
+        priority: normalizePriority(item.priority),
         notes: [...(item.notes ?? [])],
         subtasks: (item.subtasks ?? []).map((subtask) => ({ ...subtask })),
       })),
@@ -141,12 +142,22 @@ function insertItem(items, item, index) {
   return targetIndex;
 }
 
+function normalizePriority(value) {
+  if (value === undefined || value === null || value === "") return undefined;
+  const priority = sanitizeSingleLine(value).toLowerCase();
+  if (!["low", "medium", "high"].includes(priority)) {
+    throw new Error("priority must be low, medium, or high.");
+  }
+  return priority;
+}
+
 function createTask(id, text, checked = false, options = {}) {
   return {
     id,
     text: normalizeTaskText(text),
     checked: Boolean(checked),
     focused: Boolean(options.focused),
+    priority: normalizePriority(options.priority),
     notes: [],
     subtasks: [],
   };
@@ -191,6 +202,7 @@ function buildTaskView(item, sectionName) {
     text: item.text,
     checked: item.checked,
     focused: Boolean(item.focused),
+    priority: normalizePriority(item.priority),
     section: sectionName,
     notes: [...(item.notes ?? [])],
     subtasks: (item.subtasks ?? []).map((subtask, index) => ({
@@ -204,23 +216,30 @@ function buildTaskView(item, sectionName) {
 }
 
 function renderTaskMetadata(item) {
-  return item.focused ? " [focus]" : "";
+  const markers = [];
+  if (item.focused) markers.push("[focus]");
+  if (item.priority) markers.push(`[${item.priority}]`);
+  return markers.length > 0 ? ` ${markers.join(" ")}` : "";
 }
 
 function extractTaskMetadata(rawText) {
   let text = sanitizeSingleLine(rawText);
   let focused = false;
+  let priority;
 
   while (true) {
-    const match = text.match(/\s+\[(focus)\]\s*$/i);
+    const match = text.match(/\s+\[(focus|low|medium|high)\]\s*$/i);
     if (!match) break;
-    focused = true;
+    const marker = match[1].toLowerCase();
+    if (marker === "focus") focused = true;
+    else priority = marker;
     text = text.slice(0, match.index).trimEnd();
   }
 
   return {
     text: normalizeTaskText(text),
     focused,
+    priority,
   };
 }
 
@@ -256,6 +275,17 @@ function recommendNextTask(document, options = {}) {
         return;
       }
       if (!candidate.focused && best.focused) {
+        return;
+      }
+
+      const priorityRank = { high: 3, medium: 2, low: 1 };
+      const candidatePriority = priorityRank[candidate.priority] ?? 0;
+      const bestPriority = priorityRank[best.priority] ?? 0;
+      if (candidatePriority > bestPriority) {
+        best = candidate;
+        return;
+      }
+      if (candidatePriority < bestPriority) {
         return;
       }
 
@@ -404,7 +434,7 @@ export function parseTodoMarkdown(markdown = "") {
           taskMatch[3] ? Number(taskMatch[3]) : undefined,
           metadata.text,
           taskMatch[1].toLowerCase() === "x",
-          { focused: metadata.focused },
+          { focused: metadata.focused, priority: metadata.priority },
         );
         currentSection.items.push(currentTask);
         continue;
@@ -453,6 +483,7 @@ export function parseTodoMarkdown(markdown = "") {
       usedIds.add(item.id);
       nextId = Math.max(nextId, item.id + 1);
       item.focused = Boolean(item.focused);
+      item.priority = normalizePriority(item.priority);
       item.notes = [...(item.notes ?? [])];
       item.subtasks = (item.subtasks ?? []).map((subtask) => ({
         text: normalizeTaskText(subtask.text),
@@ -525,7 +556,7 @@ export function applyTodoAction(document, params) {
         });
       }
 
-      const focusSuffix = recommendation.focused ? " [focus]" : "";
+      const metadataSuffix = renderTaskMetadata(recommendation);
       const subtaskSuffix = recommendation.openSubtasks > 0
         ? ` (${recommendation.openSubtasks} open subtask${recommendation.openSubtasks === 1 ? "" : "s"})`
         : "";
@@ -533,7 +564,7 @@ export function applyTodoAction(document, params) {
       return createActionResult(workingDocument, action, {
         changed: false,
         filterSection,
-        message: `Next task: #${recommendation.id} in ${recommendation.section}: ${recommendation.text}${focusSuffix}${subtaskSuffix}`,
+        message: `Next task: #${recommendation.id} in ${recommendation.section}: ${recommendation.text}${metadataSuffix}${subtaskSuffix}`,
         affectedItem: recommendation,
       });
     }
@@ -639,6 +670,35 @@ export function applyTodoAction(document, params) {
         message: changed
           ? `${desiredState ? "Focused" : "Unfocused"} #${found.item.id} in ${found.section.name}: ${found.item.text}`
           : `Task #${found.item.id} is already ${desiredState ? "focused" : "not focused"}.`,
+        affectedItem: { ...buildTaskView(found.item, found.section.name), section: found.section.name },
+      });
+    }
+
+    case "set_priority": {
+      const found = findItem(workingDocument, params.id);
+      const nextPriority = normalizePriority(params.priority);
+      const changed = found.item.priority !== nextPriority;
+      found.item.priority = nextPriority;
+
+      return createActionResult(workingDocument, action, {
+        changed,
+        message: changed
+          ? `Set priority on #${found.item.id} in ${found.section.name} to ${nextPriority}.`
+          : `Task #${found.item.id} already has priority ${nextPriority}.`,
+        affectedItem: { ...buildTaskView(found.item, found.section.name), section: found.section.name },
+      });
+    }
+
+    case "clear_priority": {
+      const found = findItem(workingDocument, params.id);
+      const changed = found.item.priority !== undefined;
+      found.item.priority = undefined;
+
+      return createActionResult(workingDocument, action, {
+        changed,
+        message: changed
+          ? `Cleared priority on #${found.item.id} in ${found.section.name}.`
+          : `Task #${found.item.id} does not have a priority.`,
         affectedItem: { ...buildTaskView(found.item, found.section.name), section: found.section.name },
       });
     }
