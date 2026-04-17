@@ -152,8 +152,9 @@ feat!: change TODO.md section ordering rules
 For seamless publishing, configure **npm trusted publishing** for:
 
 - GitHub repo: `forjd/pi-todo-md`
-- workflow: `.github/workflows/release-please.yml`
+- workflow filename: `release-please.yml`
 
+Use the workflow filename only in npm's UI, not the full `.github/workflows/...` path.
 That lets GitHub Actions publish to npm without a long-lived token or OTP prompts.
 
 If you prefer not to use trusted publishing, add an `NPM_TOKEN` repository secret instead.
