@@ -15,6 +15,7 @@ function cloneDocument(document) {
       name: section.name,
       items: section.items.map((item) => ({
         ...item,
+        focused: Boolean(item.focused),
         notes: [...(item.notes ?? [])],
         subtasks: (item.subtasks ?? []).map((subtask) => ({ ...subtask })),
       })),
@@ -140,11 +141,12 @@ function insertItem(items, item, index) {
   return targetIndex;
 }
 
-function createTask(id, text, checked = false) {
+function createTask(id, text, checked = false, options = {}) {
   return {
     id,
     text: normalizeTaskText(text),
     checked: Boolean(checked),
+    focused: Boolean(options.focused),
     notes: [],
     subtasks: [],
   };
@@ -188,6 +190,7 @@ function buildTaskView(item, sectionName) {
     id: item.id,
     text: item.text,
     checked: item.checked,
+    focused: Boolean(item.focused),
     section: sectionName,
     notes: [...(item.notes ?? [])],
     subtasks: (item.subtasks ?? []).map((subtask, index) => ({
@@ -197,6 +200,27 @@ function buildTaskView(item, sectionName) {
       parentId: item.id,
       section: sectionName,
     })),
+  };
+}
+
+function renderTaskMetadata(item) {
+  return item.focused ? " [focus]" : "";
+}
+
+function extractTaskMetadata(rawText) {
+  let text = sanitizeSingleLine(rawText);
+  let focused = false;
+
+  while (true) {
+    const match = text.match(/\s+\[(focus)\]\s*$/i);
+    if (!match) break;
+    focused = true;
+    text = text.slice(0, match.index).trimEnd();
+  }
+
+  return {
+    text: normalizeTaskText(text),
+    focused,
   };
 }
 
@@ -224,6 +248,14 @@ function recommendNextTask(document, options = {}) {
 
       if (!best) {
         best = candidate;
+        return;
+      }
+
+      if (candidate.focused && !best.focused) {
+        best = candidate;
+        return;
+      }
+      if (!candidate.focused && best.focused) {
         return;
       }
 
@@ -287,7 +319,7 @@ function formatListMessage(sections, counts, filterSection) {
   for (const section of sections) {
     lines.push("", `## ${section.name}`);
     for (const item of section.items) {
-      lines.push(`- [${item.checked ? "x" : " "}] #${item.id} ${item.text}`);
+      lines.push(`- [${item.checked ? "x" : " "}] #${item.id} ${item.text}${renderTaskMetadata(item)}`);
       for (const note of item.notes ?? []) {
         lines.push(`  - note: ${note}`);
       }
@@ -367,7 +399,13 @@ export function parseTodoMarkdown(markdown = "") {
       const taskMatch = trimmed.match(/^[*-]\s+\[( |x|X)\]\s+(.*?)(?:\s*<!--\s*pi-todo-md:id=(\d+)\s*-->)?\s*$/);
       if (taskMatch) {
         if (!currentSection) currentSection = ensureSection(document, DEFAULT_SECTION);
-        currentTask = createTask(taskMatch[3] ? Number(taskMatch[3]) : undefined, taskMatch[2], taskMatch[1].toLowerCase() === "x");
+        const metadata = extractTaskMetadata(taskMatch[2]);
+        currentTask = createTask(
+          taskMatch[3] ? Number(taskMatch[3]) : undefined,
+          metadata.text,
+          taskMatch[1].toLowerCase() === "x",
+          { focused: metadata.focused },
+        );
         currentSection.items.push(currentTask);
         continue;
       }
@@ -414,6 +452,7 @@ export function parseTodoMarkdown(markdown = "") {
       }
       usedIds.add(item.id);
       nextId = Math.max(nextId, item.id + 1);
+      item.focused = Boolean(item.focused);
       item.notes = [...(item.notes ?? [])];
       item.subtasks = (item.subtasks ?? []).map((subtask) => ({
         text: normalizeTaskText(subtask.text),
@@ -436,7 +475,7 @@ export function renderTodoMarkdown(document) {
   normalized.sections.forEach((section, index) => {
     lines.push(`## ${normalizeSectionName(section.name)}`);
     for (const item of section.items) {
-      lines.push(`- [${item.checked ? "x" : " "}] ${normalizeTaskText(item.text)} <!-- ${ID_MARKER_PREFIX}${item.id} -->`);
+      lines.push(`- [${item.checked ? "x" : " "}] ${normalizeTaskText(item.text)}${renderTaskMetadata(item)} <!-- ${ID_MARKER_PREFIX}${item.id} -->`);
       for (const note of item.notes ?? []) {
         lines.push(`  - note: ${sanitizeSingleLine(note)}`);
       }
@@ -486,6 +525,7 @@ export function applyTodoAction(document, params) {
         });
       }
 
+      const focusSuffix = recommendation.focused ? " [focus]" : "";
       const subtaskSuffix = recommendation.openSubtasks > 0
         ? ` (${recommendation.openSubtasks} open subtask${recommendation.openSubtasks === 1 ? "" : "s"})`
         : "";
@@ -493,8 +533,29 @@ export function applyTodoAction(document, params) {
       return createActionResult(workingDocument, action, {
         changed: false,
         filterSection,
-        message: `Next task: #${recommendation.id} in ${recommendation.section}: ${recommendation.text}${subtaskSuffix}`,
+        message: `Next task: #${recommendation.id} in ${recommendation.section}: ${recommendation.text}${focusSuffix}${subtaskSuffix}`,
         affectedItem: recommendation,
+      });
+    }
+
+    case "list_focused": {
+      const sections = workingDocument.sections
+        .filter((section) => section.name.toLowerCase() !== ARCHIVE_SECTION.toLowerCase())
+        .map((section) => ({
+          ...section,
+          items: section.items.filter((item) => item.focused),
+        }))
+        .filter((section) => section.items.length > 0)
+        .map(buildSectionView);
+      const counts = summarizeSections(sections);
+
+      return createActionResult(workingDocument, action, {
+        changed: false,
+        message:
+          counts.total === 0
+            ? "No focused tasks."
+            : formatListMessage(sections, counts, "Focus"),
+        sections,
       });
     }
 
@@ -562,6 +623,22 @@ export function applyTodoAction(document, params) {
         message: changed
           ? `Renamed #${found.item.id} in ${found.section.name}: ${found.item.text}`
           : `Task #${found.item.id} already has that text.`,
+        affectedItem: { ...buildTaskView(found.item, found.section.name), section: found.section.name },
+      });
+    }
+
+    case "focus_task":
+    case "unfocus_task": {
+      const desiredState = action === "focus_task";
+      const found = findItem(workingDocument, params.id);
+      const changed = found.item.focused !== desiredState;
+      found.item.focused = desiredState;
+
+      return createActionResult(workingDocument, action, {
+        changed,
+        message: changed
+          ? `${desiredState ? "Focused" : "Unfocused"} #${found.item.id} in ${found.section.name}: ${found.item.text}`
+          : `Task #${found.item.id} is already ${desiredState ? "focused" : "not focused"}.`,
         affectedItem: { ...buildTaskView(found.item, found.section.name), section: found.section.name },
       });
     }

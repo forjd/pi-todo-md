@@ -9,12 +9,15 @@ import { ARCHIVE_SECTION, executeTodoActionOnFile, locateTodoFile, sanitizeSingl
 
 const TODO_ACTIONS = [
   "list",
+  "list_focused",
   "next_task",
   "add",
   "bulk_add",
   "check",
   "uncheck",
   "rename",
+  "focus_task",
+  "unfocus_task",
   "set_note",
   "append_note",
   "clear_note",
@@ -53,6 +56,11 @@ function findTaskInDetails(details, id) {
   return undefined;
 }
 
+function formatTaskLabel(item) {
+  const focusTag = item.focused ? " [focus]" : "";
+  return `${item.text}${focusTag}`;
+}
+
 function buildSectionList(details, options = {}) {
   const { expanded = false, showDone = true } = options;
   const lines = [];
@@ -74,7 +82,7 @@ function buildSectionList(details, options = {}) {
     for (let itemIndex = 0; itemIndex < maxItems; itemIndex += 1) {
       const item = items[itemIndex];
       lines.push({
-        text: `${item.checked ? "[x]" : "[ ]"} #${item.id} ${item.text}`,
+        text: `${item.checked ? "[x]" : "[ ]"} #${item.id} ${formatTaskLabel(item)}`,
         tone: item.checked ? "dim" : "muted",
       });
 
@@ -116,8 +124,9 @@ function buildBrowserRows(details, showDone) {
         key: `task:${item.id}`,
         id: item.id,
         checked: item.checked,
+        focused: Boolean(item.focused),
         section: section.name,
-        text: item.text,
+        text: formatTaskLabel(item),
         notes: item.notes ?? [],
         subtasks: item.subtasks ?? [],
       });
@@ -283,6 +292,11 @@ class TodoListComponent {
       return;
     }
 
+    if ((data === "f" || data === "F") && selected.kind === "task") {
+      this.submit({ type: selected.focused ? "unfocus_task" : "focus_task", id: selected.id });
+      return;
+    }
+
     if ((data === "r" || data === "R") && selected.kind === "task") {
       this.submit({ type: "rename_task", id: selected.id });
       return;
@@ -360,7 +374,7 @@ class TodoListComponent {
     }
 
     lines.push("");
-    lines.push(truncateToWidth(theme.fg("dim", "↑↓/j/k move • x toggle • r rename • n note • s subtask"), width));
+    lines.push(truncateToWidth(theme.fg("dim", "↑↓/j/k move • x toggle • f focus • r rename • n note • s subtask"), width));
     lines.push(truncateToWidth(theme.fg("dim", "p prioritize • d delete • a archive done • o toggle done • Enter/q/Esc close"), width));
     lines.push("");
 
@@ -392,13 +406,15 @@ export default function (pi) {
     name: "todo_md",
     label: "TODO.md",
     description:
-      "Manage the project's TODO.md file with a structured API. Actions: list, next_task, add, bulk_add, rename, set_note, append_note, clear_note, add_subtask, check_subtask, uncheck_subtask, remove_subtask, check, uncheck, remove, move, prioritize, archive_done.",
+      "Manage the project's TODO.md file with a structured API. Actions: list, list_focused, next_task, add, bulk_add, rename, focus_task, unfocus_task, set_note, append_note, clear_note, add_subtask, check_subtask, uncheck_subtask, remove_subtask, check, uncheck, remove, move, prioritize, archive_done.",
     promptSnippet:
       "Use todo_md to manage the project's TODO.md file instead of editing the file directly.",
     promptGuidelines: [
       "Use todo_md when the user asks to manage the project task list or TODO.md.",
       "Use action='list' before mutating tasks when you need the current task IDs, notes, subtasks, or section names.",
+      "Use action='list_focused' when the user asks to see the active working set.",
       "Use action='next_task' when the user asks what to work on next.",
+      "Use action='focus_task' or 'unfocus_task' to mark what is actively being worked on.",
       "Use action='bulk_add' when the user gives you multiple tasks at once.",
       "Use note and subtask actions instead of rewriting TODO.md by hand.",
       `Use action='archive_done' to move completed tasks into ${ARCHIVE_SECTION}.`,
@@ -483,6 +499,12 @@ export default function (pi) {
         switch (action.type) {
           case "check_task":
             mutationResult = await runTodo(ctx, { action: "check", id: action.id });
+            break;
+          case "focus_task":
+            mutationResult = await runTodo(ctx, { action: "focus_task", id: action.id });
+            break;
+          case "unfocus_task":
+            mutationResult = await runTodo(ctx, { action: "unfocus_task", id: action.id });
             break;
           case "uncheck_task":
             mutationResult = await runTodo(ctx, { action: "uncheck", id: action.id });

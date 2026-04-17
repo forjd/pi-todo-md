@@ -71,6 +71,30 @@ test("next_task recommends the first useful open task", async () => {
   assert.match(result.message, /No open tasks found/);
 });
 
+test("focus mode marks tasks and affects recommendations", async () => {
+  const root = await makeTempDir();
+  const todoPath = join(root, "TODO.md");
+
+  await executeTodoActionOnFile(todoPath, { action: "add", text: "first task" });
+  await executeTodoActionOnFile(todoPath, { action: "add", text: "second task" });
+  await executeTodoActionOnFile(todoPath, { action: "focus_task", id: 2 });
+
+  let result = await executeTodoActionOnFile(todoPath, { action: "list_focused" });
+  assert.equal(result.details.counts.total, 1);
+  assert.equal(result.details.affectedItem, undefined);
+  assert.equal(getSection(result, "Tasks").items[0].focused, true);
+
+  result = await executeTodoActionOnFile(todoPath, { action: "next_task" });
+  assert.equal(result.details.affectedItem.id, 2);
+  assert.equal(result.details.affectedItem.focused, true);
+
+  const markdown = await readFile(todoPath, "utf8");
+  assert.match(markdown, /second task \[focus\] <!-- pi-todo-md:id=2 -->/);
+
+  result = await executeTodoActionOnFile(todoPath, { action: "unfocus_task", id: 2 });
+  assert.equal(getSection(result, "Tasks").items[1].focused, false);
+});
+
 test("rename and bulk_add support richer task updates", async () => {
   const root = await makeTempDir();
   const todoPath = join(root, "TODO.md");

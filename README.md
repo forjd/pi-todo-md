@@ -11,7 +11,7 @@ A shareable [pi](https://www.npmjs.com/package/@mariozechner/pi-coding-agent) pa
 - finds the nearest `TODO.md` in the current directory or a parent directory
 - creates `TODO.md` at the git repo root when none exists yet
 - keeps stable task IDs with hidden HTML comments
-- supports sections, reordering, bulk add, rename, notes, subtasks, check/uncheck, archive, and prioritize
+- supports sections, reordering, bulk add, rename, focus mode, notes, subtasks, check/uncheck, archive, and prioritize
 - adds an interactive `/todos [section]` browser inside pi with keyboard actions
 
 ## Install
@@ -36,6 +36,7 @@ After installing, start `pi` in your project and ask things like:
 - `Add a task to TODO.md to publish the plugin`
 - `Add these tasks to TODO.md: write docs, record demo, publish package`
 - `What should I work on next from TODO.md?`
+- `Focus task #2 and show me the current focus list`
 - `Rename task #2 to finish README polish`
 - `Add a note to task #2 saying publish after the docs land`
 - `Add subtasks to #2 for writing docs and publishing the package`
@@ -53,12 +54,15 @@ The extension registers a tool named `todo_md`.
 | Action | Required | Optional | Description |
 |---|---|---|---|
 | `list` | — | `section` | Show the current task list |
+| `list_focused` | — | — | Show the current focused tasks |
 | `next_task` | — | `section` | Recommend the next open task |
 | `add` | `text` | `section`, `index` | Add one task |
 | `bulk_add` | `items` | `section`, `index` | Add multiple tasks at once |
 | `check` | `id` | — | Mark a task done |
 | `uncheck` | `id` | — | Mark a task not done |
 | `rename` | `id`, `text` | — | Change task text |
+| `focus_task` | `id` | — | Mark a task as part of the active working set |
+| `unfocus_task` | `id` | — | Remove a task from the active working set |
 | `set_note` | `id`, `text` | — | Replace a task's note text |
 | `append_note` | `id`, `text` | — | Append note line(s) to a task |
 | `clear_note` | `id` | — | Remove all notes from a task |
@@ -75,6 +79,7 @@ There is also a `/todos [section]` command for an interactive view. Inside the b
 
 - `↑↓` or `j/k` to move
 - `x` to toggle the selected task or subtask
+- `f` to focus or unfocus the selected task
 - `r` to rename a task
 - `n` to edit a task note
 - `s` to add a subtask
@@ -91,7 +96,7 @@ There is also a `/todos [section]` command for an interactive view. Inside the b
 # TODO
 
 ## Tasks
-- [ ] ship the plugin <!-- pi-todo-md:id=1 -->
+- [ ] ship the plugin [focus] <!-- pi-todo-md:id=1 -->
   - note: publish after trusted publishing works
   - [ ] write docs
   - [ ] publish package
