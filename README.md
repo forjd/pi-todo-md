@@ -11,6 +11,7 @@ A shareable [pi](https://www.npmjs.com/package/@mariozechner/pi-coding-agent) pa
 - finds the nearest `TODO.md` in the current directory or a parent directory
 - creates `TODO.md` at the git repo root when none exists yet
 - keeps stable task IDs with hidden HTML comments
+- writes a hidden file schema marker for future migrations
 - supports sections, reordering, bulk add, rename, focus mode, priority metadata, notes, subtasks, check/uncheck, archive, and prioritize
 - adds an interactive `/todos [section]` browser inside pi with keyboard actions
 - injects a compact active-task summary into relevant agent turns so pi can stay aligned with the current working set
@@ -104,6 +105,7 @@ There is also a `/todos [section]` command for an interactive view. Inside the b
 
 ```md
 # TODO
+<!-- pi-todo-md:schema=1 -->
 
 ## Tasks
 - [ ] ship the plugin [focus] [high] <!-- pi-todo-md:id=1 -->
@@ -119,7 +121,7 @@ There is also a `/todos [section]` command for an interactive view. Inside the b
 - [x] initial release <!-- pi-todo-md:id=4 -->
 ```
 
-The hidden `<!-- pi-todo-md:id=... -->` markers keep task IDs stable across edits.
+The hidden `<!-- pi-todo-md:schema=1 -->` marker reserves room for future file migrations, and the hidden `<!-- pi-todo-md:id=... -->` markers keep task IDs stable across edits.
 
 ## File placement rules
 

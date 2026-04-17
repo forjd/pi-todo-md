@@ -40,6 +40,7 @@ test("add, list, check, uncheck, and remove work on a fresh TODO.md", async () =
   assert.equal(getSection(result, "Tasks").items[0].text, "ship the plugin");
 
   let markdown = await readFile(todoPath, "utf8");
+  assert.match(markdown, /<!-- pi-todo-md:schema=1 -->/);
   assert.match(markdown, /<!-- pi-todo-md:id=1 -->/);
 
   result = await executeTodoActionOnFile(todoPath, { action: "check", id: 1 });
@@ -54,6 +55,34 @@ test("add, list, check, uncheck, and remove work on a fresh TODO.md", async () =
   markdown = await readFile(todoPath, "utf8");
   assert.match(markdown, /^# TODO/m);
   assert.doesNotMatch(markdown, /ship the plugin/);
+});
+
+test("missing schema defaults to version 1 and is normalized on write", async () => {
+  const root = await makeTempDir();
+  const todoPath = join(root, "TODO.md");
+
+  await writeFile(todoPath, "# TODO\n\n## Tasks\n- [ ] existing task\n", "utf8");
+
+  const parsed = parseTodoMarkdown(await readFile(todoPath, "utf8"));
+  assert.equal(parsed.schema, 1);
+
+  const result = await executeTodoActionOnFile(todoPath, { action: "list" });
+  assert.equal(result.details.written, true);
+
+  const markdown = await readFile(todoPath, "utf8");
+  assert.match(markdown, /^# TODO\n<!-- pi-todo-md:schema=1 -->\n\n## Tasks/m);
+});
+
+test("newer unsupported schema versions are rejected", async () => {
+  const root = await makeTempDir();
+  const todoPath = join(root, "TODO.md");
+
+  await writeFile(todoPath, "# TODO\n<!-- pi-todo-md:schema=99 -->\n\n## Tasks\n- [ ] future task <!-- pi-todo-md:id=1 -->\n", "utf8");
+
+  await assert.rejects(
+    executeTodoActionOnFile(todoPath, { action: "list" }),
+    /schema 99 is newer than this version of pi-todo-md supports/i,
+  );
 });
 
 test("next_task recommends the first useful open task", async () => {

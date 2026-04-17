@@ -6,10 +6,13 @@ export const TODO_FILE_NAME = "TODO.md";
 export const DEFAULT_TITLE = "TODO";
 export const DEFAULT_SECTION = "Tasks";
 export const ARCHIVE_SECTION = "Archive";
+export const TODO_SCHEMA_VERSION = 1;
+export const SCHEMA_MARKER_PREFIX = "pi-todo-md:schema=";
 export const ID_MARKER_PREFIX = "pi-todo-md:id=";
 
 function cloneDocument(document) {
   return {
+    schema: normalizeSchemaVersion(document.schema),
     title: document.title,
     sections: document.sections.map((section) => ({
       name: section.name,
@@ -153,6 +156,22 @@ function insertItem(items, item, index) {
   const targetIndex = index === undefined ? items.length : Math.min(Math.max(index, 0), items.length);
   items.splice(targetIndex, 0, item);
   return targetIndex;
+}
+
+function normalizeSchemaVersion(value) {
+  if (value === undefined || value === null || value === "") return TODO_SCHEMA_VERSION;
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed < 1) return TODO_SCHEMA_VERSION;
+  return parsed;
+}
+
+function assertSupportedSchemaVersion(document) {
+  const schema = normalizeSchemaVersion(document.schema);
+  if (schema > TODO_SCHEMA_VERSION) {
+    throw new Error(
+      `TODO.md schema ${schema} is newer than this version of pi-todo-md supports (${TODO_SCHEMA_VERSION}). Please upgrade pi-todo-md.`,
+    );
+  }
 }
 
 function normalizePriority(value) {
@@ -450,6 +469,7 @@ function createActionResult(document, action, options = {}) {
 
 export function parseTodoMarkdown(markdown = "") {
   const document = {
+    schema: TODO_SCHEMA_VERSION,
     title: DEFAULT_TITLE,
     sections: [],
   };
@@ -464,6 +484,15 @@ export function parseTodoMarkdown(markdown = "") {
     const trimmed = line.trimStart();
 
     if (!trimmed) continue;
+
+    if (leading === 0) {
+      const schemaMatch = trimmed.match(new RegExp(`^<!--\\s*${SCHEMA_MARKER_PREFIX}(\\d+)\\s*-->$`));
+      if (schemaMatch) {
+        document.schema = normalizeSchemaVersion(schemaMatch[1]);
+        currentTask = null;
+        continue;
+      }
+    }
 
     if (!sawTitle && leading === 0) {
       const titleMatch = trimmed.match(/^#\s+(.+?)\s*$/);
@@ -549,6 +578,7 @@ export function parseTodoMarkdown(markdown = "") {
     }
   }
 
+  document.schema = normalizeSchemaVersion(document.schema);
   return document;
 }
 
@@ -558,7 +588,11 @@ export function renderTodoMarkdown(document) {
     normalized.sections.push({ name: DEFAULT_SECTION, items: [] });
   }
 
-  const lines = [`# ${normalized.title || DEFAULT_TITLE}`, ""];
+  const lines = [
+    `# ${normalized.title || DEFAULT_TITLE}`,
+    `<!-- ${SCHEMA_MARKER_PREFIX}${TODO_SCHEMA_VERSION} -->`,
+    "",
+  ];
 
   normalized.sections.forEach((section, index) => {
     lines.push(`## ${normalizeSectionName(section.name)}`);
@@ -1061,6 +1095,7 @@ export async function executeTodoActionOnFile(todoPath, params) {
   }
 
   const document = parseTodoMarkdown(original);
+  assertSupportedSchemaVersion(document);
   const result = applyTodoAction(document, params);
   const nextMarkdown = renderTodoMarkdown(result.document);
   const written = original !== nextMarkdown;
