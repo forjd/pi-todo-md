@@ -31,6 +31,9 @@
     "check": "node --test",
     "test": "node --test"
   },
+  "publishConfig": {
+    "access": "public"
+  },
   "peerDependencies": {
     "@mariozechner/pi-ai": "*",
     "@mariozechner/pi-coding-agent": "*",
