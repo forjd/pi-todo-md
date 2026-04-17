@@ -174,6 +174,40 @@ function assertSupportedSchemaVersion(document) {
   }
 }
 
+const TODO_SCHEMA_MIGRATIONS = new Map([
+  // Add future step migrations here, keyed by the source schema version.
+  // Example: [1, migrateTodoSchema1To2],
+]);
+
+function applyTodoSchemaMigration(document, schema) {
+  const migrate = TODO_SCHEMA_MIGRATIONS.get(schema);
+  if (!migrate) {
+    throw new Error(
+      `TODO.md schema ${schema} is older than the current schema ${TODO_SCHEMA_VERSION}, but no migration path is registered.`,
+    );
+  }
+
+  return {
+    ...migrate(document),
+    schema: schema + 1,
+  };
+}
+
+export function migrateTodoDocument(document) {
+  assertSupportedSchemaVersion(document);
+
+  let migrated = cloneDocument(document);
+  let schema = normalizeSchemaVersion(migrated.schema);
+
+  while (schema < TODO_SCHEMA_VERSION) {
+    migrated = applyTodoSchemaMigration(migrated, schema);
+    schema = normalizeSchemaVersion(migrated.schema);
+  }
+
+  migrated.schema = TODO_SCHEMA_VERSION;
+  return migrated;
+}
+
 function normalizePriority(value) {
   if (value === undefined || value === null || value === "") return undefined;
   const priority = sanitizeSingleLine(value).toLowerCase();
@@ -1094,8 +1128,7 @@ export async function executeTodoActionOnFile(todoPath, params) {
     if (!error || error.code !== "ENOENT") throw error;
   }
 
-  const document = parseTodoMarkdown(original);
-  assertSupportedSchemaVersion(document);
+  const document = migrateTodoDocument(parseTodoMarkdown(original));
   const result = applyTodoAction(document, params);
   const nextMarkdown = renderTodoMarkdown(result.document);
   const written = original !== nextMarkdown;

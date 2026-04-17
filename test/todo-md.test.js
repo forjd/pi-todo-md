@@ -9,6 +9,7 @@ import {
   buildTodoContextSummary,
   executeTodoActionOnFile,
   locateTodoFile,
+  migrateTodoDocument,
   parseTodoMarkdown,
 } from "../src/todo-md.js";
 
@@ -83,6 +84,16 @@ test("newer unsupported schema versions are rejected", async () => {
     executeTodoActionOnFile(todoPath, { action: "list" }),
     /schema 99 is newer than this version of pi-todo-md supports/i,
   );
+});
+
+test("migrateTodoDocument is ready for stepwise schema migrations", () => {
+  const document = parseTodoMarkdown("# TODO\n<!-- pi-todo-md:schema=1 -->\n\n## Tasks\n- [ ] existing task <!-- pi-todo-md:id=1 -->\n");
+
+  const migrated = migrateTodoDocument(document);
+
+  assert.notEqual(migrated, document);
+  assert.equal(migrated.schema, 1);
+  assert.deepEqual(migrated, document);
 });
 
 test("next_task recommends the first useful open task", async () => {
