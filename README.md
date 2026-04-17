@@ -38,6 +38,7 @@ After installing, start `pi` in your project and ask things like:
 - `What should I work on next from TODO.md?`
 - `Focus task #2 and show me the current focus list`
 - `Mark task #3 as high priority`
+- `Create an Inbox section and move task #5 there`
 - `Rename task #2 to finish README polish`
 - `Add a note to task #2 saying publish after the docs land`
 - `Add subtasks to #2 for writing docs and publishing the package`
@@ -57,6 +58,10 @@ The extension registers a tool named `todo_md`.
 | `list` | — | `section` | Show the current task list |
 | `list_focused` | — | — | Show the current focused tasks |
 | `next_task` | — | `section` | Recommend the next open task |
+| `create_section` | `section` | — | Create a new section |
+| `rename_section` | `section` | `targetSection` | Rename a section |
+| `remove_section` | `section` | `targetSection` | Remove a section, optionally moving its tasks |
+| `move_section` | `section`, `index` | — | Reorder sections |
 | `add` | `text` | `section`, `index` | Add one task |
 | `bulk_add` | `items` | `section`, `index` | Add multiple tasks at once |
 | `check` | `id` | — | Mark a task done |

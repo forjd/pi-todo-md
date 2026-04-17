@@ -136,6 +136,19 @@ function ensureSection(document, sectionName) {
   return created;
 }
 
+function requireSection(document, sectionName) {
+  const section = findSection(document, sectionName);
+  if (!section) {
+    throw new Error(`Section ${normalizeSectionName(sectionName)} was not found.`);
+  }
+  return section;
+}
+
+function findSectionIndex(document, sectionName) {
+  const normalizedName = normalizeSectionName(sectionName);
+  return document.sections.findIndex((section) => section.name.toLowerCase() === normalizedName.toLowerCase());
+}
+
 function insertItem(items, item, index) {
   const targetIndex = index === undefined ? items.length : Math.min(Math.max(index, 0), items.length);
   items.splice(targetIndex, 0, item);
@@ -587,6 +600,102 @@ export function applyTodoAction(document, params) {
             ? "No focused tasks."
             : formatListMessage(sections, counts, "Focus"),
         sections,
+      });
+    }
+
+    case "create_section": {
+      const name = normalizeSectionName(params.section);
+      const existing = findSection(workingDocument, name);
+      if (existing) {
+        return createActionResult(workingDocument, action, {
+          changed: false,
+          message: `Section ${existing.name} already exists.`,
+        });
+      }
+
+      ensureSection(workingDocument, name);
+      return createActionResult(workingDocument, action, {
+        changed: true,
+        message: `Created section ${name}.`,
+      });
+    }
+
+    case "rename_section": {
+      const section = requireSection(workingDocument, params.section);
+      if (params.targetSection === undefined && params.text === undefined) {
+        throw new Error("targetSection or text is required for rename_section.");
+      }
+      const targetName = normalizeSectionName(params.targetSection ?? params.text);
+      if (section.name.toLowerCase() === targetName.toLowerCase()) {
+        return createActionResult(workingDocument, action, {
+          changed: false,
+          message: `Section ${section.name} already has that name.`,
+        });
+      }
+      if (findSection(workingDocument, targetName)) {
+        throw new Error(`Section ${targetName} already exists.`);
+      }
+
+      const previousName = section.name;
+      section.name = targetName;
+      return createActionResult(workingDocument, action, {
+        changed: true,
+        message: `Renamed section ${previousName} to ${targetName}.`,
+      });
+    }
+
+    case "remove_section": {
+      const sectionIndex = findSectionIndex(workingDocument, params.section);
+      if (sectionIndex === -1) {
+        throw new Error(`Section ${normalizeSectionName(params.section)} was not found.`);
+      }
+
+      const section = workingDocument.sections[sectionIndex];
+      const targetName = params.targetSection ? normalizeSectionName(params.targetSection) : undefined;
+      if (section.items.length > 0) {
+        if (!targetName) {
+          throw new Error(`Section ${section.name} is not empty. Provide targetSection to move its tasks first.`);
+        }
+        if (section.name.toLowerCase() === targetName.toLowerCase()) {
+          throw new Error("targetSection must be different from the section being removed.");
+        }
+        const targetSection = ensureSection(workingDocument, targetName);
+        targetSection.items.push(...section.items);
+      }
+
+      workingDocument.sections.splice(sectionIndex, 1);
+      if (workingDocument.sections.length === 0) {
+        workingDocument.sections.push({ name: DEFAULT_SECTION, items: [] });
+      }
+
+      return createActionResult(workingDocument, action, {
+        changed: true,
+        message: targetName
+          ? `Removed section ${section.name} and moved its tasks to ${targetName}.`
+          : `Removed empty section ${section.name}.`,
+      });
+    }
+
+    case "move_section": {
+      const sectionIndex = findSectionIndex(workingDocument, params.section);
+      if (sectionIndex === -1) {
+        throw new Error(`Section ${normalizeSectionName(params.section)} was not found.`);
+      }
+      const targetIndex = normalizeIndex(params.index);
+      if (targetIndex === undefined) {
+        throw new Error("index is required for move_section.");
+      }
+
+      const [section] = workingDocument.sections.splice(sectionIndex, 1);
+      const boundedIndex = Math.min(Math.max(targetIndex, 0), workingDocument.sections.length);
+      workingDocument.sections.splice(boundedIndex, 0, section);
+      const changed = boundedIndex !== sectionIndex;
+
+      return createActionResult(workingDocument, action, {
+        changed,
+        message: changed
+          ? `Moved section ${section.name} to position ${boundedIndex + 1}.`
+          : `Section ${section.name} is already at position ${boundedIndex + 1}.`,
       });
     }
 

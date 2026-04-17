@@ -11,6 +11,10 @@ const TODO_ACTIONS = [
   "list",
   "list_focused",
   "next_task",
+  "create_section",
+  "rename_section",
+  "remove_section",
+  "move_section",
   "add",
   "bulk_add",
   "check",
@@ -40,7 +44,8 @@ const TodoMdParams = Type.Object({
   id: Type.Optional(Type.Integer({ description: "Task id for task-level actions" })),
   subtask: Type.Optional(Type.Integer({ description: "1-based subtask number for subtask actions" })),
   priority: Type.Optional(StringEnum(["low", "medium", "high"])),
-  section: Type.Optional(Type.String({ description: "Section name for add, bulk_add, move, prioritize, archive_done, or list filtering" })),
+  section: Type.Optional(Type.String({ description: "Section name for section actions, add, bulk_add, move, prioritize, archive_done, or list filtering" })),
+  targetSection: Type.Optional(Type.String({ description: "Destination or new section name for section actions" })),
   index: Type.Optional(Type.Integer({ description: "1-based position within the target section for add, bulk_add, or move" })),
 });
 
@@ -434,7 +439,7 @@ export default function (pi) {
     name: "todo_md",
     label: "TODO.md",
     description:
-      "Manage the project's TODO.md file with a structured API. Actions: list, list_focused, next_task, add, bulk_add, rename, focus_task, unfocus_task, set_priority, clear_priority, set_note, append_note, clear_note, add_subtask, check_subtask, uncheck_subtask, remove_subtask, check, uncheck, remove, move, prioritize, archive_done.",
+      "Manage the project's TODO.md file with a structured API. Actions: list, list_focused, next_task, create_section, rename_section, remove_section, move_section, add, bulk_add, rename, focus_task, unfocus_task, set_priority, clear_priority, set_note, append_note, clear_note, add_subtask, check_subtask, uncheck_subtask, remove_subtask, check, uncheck, remove, move, prioritize, archive_done.",
     promptSnippet:
       "Use todo_md to manage the project's TODO.md file instead of editing the file directly.",
     promptGuidelines: [
@@ -442,6 +447,7 @@ export default function (pi) {
       "Use action='list' before mutating tasks when you need the current task IDs, notes, subtasks, or section names.",
       "Use action='list_focused' when the user asks to see the active working set.",
       "Use action='next_task' when the user asks what to work on next.",
+      "Use section actions when the user wants to create, rename, remove, or reorder sections without editing TODO.md manually.",
       "Use action='focus_task' or 'unfocus_task' to mark what is actively being worked on.",
       "Use action='set_priority' or 'clear_priority' to add semantic urgency to a task.",
       "Use action='bulk_add' when the user gives you multiple tasks at once.",
@@ -464,6 +470,7 @@ export default function (pi) {
       if (args.subtask !== undefined) parts.push(` ${theme.fg("accent", `subtask:${args.subtask}`)}`);
       if (args.priority) parts.push(` ${theme.fg("accent", `[${args.priority}]`)}`);
       if (args.section) parts.push(` ${theme.fg("accent", `[${args.section}]`)}`);
+      if (args.targetSection) parts.push(` ${theme.fg("accent", `→[${args.targetSection}]`)}`);
       if (args.index !== undefined) parts.push(` ${theme.fg("dim", `@${args.index}`)}`);
       if (args.items?.length) parts.push(` ${theme.fg("dim", `${args.items.length} item(s)`)}`);
       if (args.text) parts.push(` ${theme.fg("dim", JSON.stringify(args.text))}`);

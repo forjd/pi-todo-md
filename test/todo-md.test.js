@@ -117,6 +117,41 @@ test("priority metadata round-trips and influences next_task", async () => {
   assert.doesNotMatch(markdown, /\[high\]/);
 });
 
+test("section management can create, rename, move, and remove sections", async () => {
+  const root = await makeTempDir();
+  const todoPath = join(root, "TODO.md");
+
+  let result = await executeTodoActionOnFile(todoPath, { action: "create_section", section: "Inbox" });
+  assert.match(result.message, /Created section Inbox/);
+
+  await executeTodoActionOnFile(todoPath, { action: "add", section: "Inbox", text: "triage work" });
+  result = await executeTodoActionOnFile(todoPath, {
+    action: "rename_section",
+    section: "Inbox",
+    targetSection: "Backlog",
+  });
+  assert.match(result.message, /Renamed section Inbox to Backlog/);
+  assert.equal(getSection(result, "Backlog").items[0].text, "triage work");
+
+  result = await executeTodoActionOnFile(todoPath, {
+    action: "move_section",
+    section: "Backlog",
+    index: 1,
+  });
+  assert.equal(result.details.sections[0].name, "Backlog");
+
+  result = await executeTodoActionOnFile(todoPath, {
+    action: "remove_section",
+    section: "Backlog",
+    targetSection: "Tasks",
+  });
+  assert.match(result.message, /Removed section Backlog and moved its tasks to Tasks/);
+  assert.equal(getSection(result, "Tasks").items.at(-1).text, "triage work");
+
+  const markdown = await readFile(todoPath, "utf8");
+  assert.doesNotMatch(markdown, /## Backlog/);
+});
+
 test("rename and bulk_add support richer task updates", async () => {
   const root = await makeTempDir();
   const todoPath = join(root, "TODO.md");
