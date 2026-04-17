@@ -4,7 +4,7 @@ import { mkdtemp, mkdir, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { executeTodoActionOnFile, locateTodoFile } from "../src/todo-md.js";
+import { ARCHIVE_SECTION, executeTodoActionOnFile, locateTodoFile } from "../src/todo-md.js";
 
 async function makeTempDir() {
   return mkdtemp(join(tmpdir(), "pi-todo-md-"));
@@ -79,6 +79,56 @@ test("rename and bulk_add support richer task updates", async () => {
   assert.match(markdown, /second task renamed/);
 });
 
+test("notes and subtasks round-trip through markdown and actions", async () => {
+  const root = await makeTempDir();
+  const todoPath = join(root, "TODO.md");
+
+  await executeTodoActionOnFile(todoPath, { action: "add", text: "ship the plugin" });
+  await executeTodoActionOnFile(todoPath, {
+    action: "set_note",
+    id: 1,
+    text: "publish after docs\nannounce in Discord",
+  });
+  await executeTodoActionOnFile(todoPath, {
+    action: "add_subtask",
+    id: 1,
+    text: "write docs",
+  });
+  await executeTodoActionOnFile(todoPath, {
+    action: "add_subtask",
+    id: 1,
+    text: "publish package",
+  });
+
+  let result = await executeTodoActionOnFile(todoPath, {
+    action: "check_subtask",
+    id: 1,
+    subtask: 2,
+  });
+
+  const task = getSection(result, "Tasks").items[0];
+  assert.deepEqual(task.notes, ["publish after docs", "announce in Discord"]);
+  assert.deepEqual(
+    task.subtasks.map((subtask) => ({ index: subtask.index, text: subtask.text, checked: subtask.checked })),
+    [
+      { index: 1, text: "write docs", checked: false },
+      { index: 2, text: "publish package", checked: true },
+    ],
+  );
+
+  let markdown = await readFile(todoPath, "utf8");
+  assert.match(markdown, /  - note: publish after docs/);
+  assert.match(markdown, /  - note: announce in Discord/);
+  assert.match(markdown, /  - \[ \] write docs/);
+  assert.match(markdown, /  - \[x\] publish package/);
+
+  result = await executeTodoActionOnFile(todoPath, { action: "clear_note", id: 1 });
+  assert.deepEqual(getSection(result, "Tasks").items[0].notes, []);
+
+  markdown = await readFile(todoPath, "utf8");
+  assert.doesNotMatch(markdown, /note:/);
+});
+
 test("move and prioritize can reorder work across sections", async () => {
   const root = await makeTempDir();
   const todoPath = join(root, "TODO.md");
@@ -108,18 +158,38 @@ test("move and prioritize can reorder work across sections", async () => {
   assert.deepEqual(tasks, [1]);
 });
 
+test("archive_done moves completed tasks into the archive section", async () => {
+  const root = await makeTempDir();
+  const todoPath = join(root, "TODO.md");
+
+  await executeTodoActionOnFile(todoPath, { action: "add", text: "done task" });
+  await executeTodoActionOnFile(todoPath, { action: "add", text: "open task" });
+  await executeTodoActionOnFile(todoPath, { action: "check", id: 1 });
+
+  const result = await executeTodoActionOnFile(todoPath, { action: "archive_done" });
+  assert.match(result.message, /Archived 1 completed task/);
+  assert.deepEqual(getSection(result, "Tasks").items.map((item) => item.id), [2]);
+  assert.deepEqual(getSection(result, ARCHIVE_SECTION).items.map((item) => item.id), [1]);
+
+  const markdown = await readFile(todoPath, "utf8");
+  assert.match(markdown, /## Archive/);
+  assert.match(markdown, /- \[x\] done task <!-- pi-todo-md:id=1 -->/);
+});
+
 test("listing normalizes legacy markdown without embedded IDs", async () => {
   const root = await makeTempDir();
   const todoPath = join(root, "TODO.md");
 
   await writeFile(
     todoPath,
-    "# TODO\n\n## Tasks\n- [ ] legacy task\n- [x] old done task\n",
+    "# TODO\n\n## Tasks\n- [ ] legacy task\n  - note: keep old formatting working\n  - [x] legacy subtask\n- [x] old done task\n",
     "utf8",
   );
 
   const result = await executeTodoActionOnFile(todoPath, { action: "list" });
   assert.equal(result.details.counts.total, 2);
+  assert.deepEqual(getSection(result, "Tasks").items[0].notes, ["keep old formatting working"]);
+  assert.equal(getSection(result, "Tasks").items[0].subtasks[0].text, "legacy subtask");
 
   const markdown = await readFile(todoPath, "utf8");
   assert.match(markdown, /pi-todo-md:id=1/);

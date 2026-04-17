@@ -5,6 +5,7 @@ import { dirname, join, parse, resolve } from "node:path";
 export const TODO_FILE_NAME = "TODO.md";
 export const DEFAULT_TITLE = "TODO";
 export const DEFAULT_SECTION = "Tasks";
+export const ARCHIVE_SECTION = "Archive";
 export const ID_MARKER_PREFIX = "pi-todo-md:id=";
 
 function cloneDocument(document) {
@@ -12,7 +13,11 @@ function cloneDocument(document) {
     title: document.title,
     sections: document.sections.map((section) => ({
       name: section.name,
-      items: section.items.map((item) => ({ ...item })),
+      items: section.items.map((item) => ({
+        ...item,
+        notes: [...(item.notes ?? [])],
+        subtasks: (item.subtasks ?? []).map((subtask) => ({ ...subtask })),
+      })),
     })),
   };
 }
@@ -72,11 +77,37 @@ function normalizeTaskTexts(values) {
   return tasks;
 }
 
+function normalizeNoteLines(value) {
+  const source = String(value ?? "").replace(/\r\n/g, "\n");
+  const lines = source
+    .split("\n")
+    .map((line) => sanitizeSingleLine(line))
+    .filter(Boolean);
+
+  if (lines.length === 0) {
+    throw new Error("At least one note line is required.");
+  }
+
+  return lines;
+}
+
 function normalizeIndex(index) {
   if (index === undefined || index === null) return undefined;
   const parsed = Number(index);
   if (!Number.isFinite(parsed)) throw new Error("index must be a number.");
   return Math.max(0, Math.floor(parsed) - 1);
+}
+
+function normalizeSubtaskIndex(index) {
+  if (index === undefined || index === null) {
+    throw new Error("A valid subtask number is required.");
+  }
+
+  const parsed = Number(index);
+  if (!Number.isFinite(parsed)) throw new Error("subtask must be a number.");
+  const normalized = Math.floor(parsed) - 1;
+  if (normalized < 0) throw new Error("subtask must be at least 1.");
+  return normalized;
 }
 
 function getNextId(document) {
@@ -89,15 +120,16 @@ function getNextId(document) {
   return nextId;
 }
 
-function ensureSection(document, sectionName) {
+function findSection(document, sectionName) {
   const normalizedName = normalizeSectionName(sectionName);
-  const existing = document.sections.find(
-    (section) => section.name.toLowerCase() === normalizedName.toLowerCase(),
-  );
+  return document.sections.find((section) => section.name.toLowerCase() === normalizedName.toLowerCase());
+}
 
+function ensureSection(document, sectionName) {
+  const existing = findSection(document, sectionName);
   if (existing) return existing;
 
-  const created = { name: normalizedName, items: [] };
+  const created = { name: normalizeSectionName(sectionName), items: [] };
   document.sections.push(created);
   return created;
 }
@@ -106,6 +138,16 @@ function insertItem(items, item, index) {
   const targetIndex = index === undefined ? items.length : Math.min(Math.max(index, 0), items.length);
   items.splice(targetIndex, 0, item);
   return targetIndex;
+}
+
+function createTask(id, text, checked = false) {
+  return {
+    id,
+    text: normalizeTaskText(text),
+    checked: Boolean(checked),
+    notes: [],
+    subtasks: [],
+  };
 }
 
 function findItem(document, itemId) {
@@ -128,25 +170,52 @@ function findItem(document, itemId) {
   throw new Error(`Task #${parsedId} was not found.`);
 }
 
-function buildSectionView(section) {
-  const open = section.items.filter((item) => !item.checked).length;
-  const done = section.items.length - open;
+function findSubtask(item, subtaskIndex) {
+  const normalizedIndex = normalizeSubtaskIndex(subtaskIndex);
+  const subtasks = item.subtasks ?? [];
+  if (normalizedIndex >= subtasks.length) {
+    throw new Error(`Subtask ${normalizedIndex + 1} was not found on #${item.id}.`);
+  }
+
   return {
-    name: section.name,
-    total: section.items.length,
-    open,
-    done,
-    items: section.items.map((item) => ({
-      id: item.id,
-      text: item.text,
-      checked: item.checked,
-      section: section.name,
+    subtask: subtasks[normalizedIndex],
+    index: normalizedIndex,
+  };
+}
+
+function buildTaskView(item, sectionName) {
+  return {
+    id: item.id,
+    text: item.text,
+    checked: item.checked,
+    section: sectionName,
+    notes: [...(item.notes ?? [])],
+    subtasks: (item.subtasks ?? []).map((subtask, index) => ({
+      index: index + 1,
+      text: subtask.text,
+      checked: subtask.checked,
+      parentId: item.id,
+      section: sectionName,
     })),
   };
 }
 
+function buildSectionView(section) {
+  const items = section.items.map((item) => buildTaskView(item, section.name));
+  const open = items.filter((item) => !item.checked).length;
+  const done = items.length - open;
+
+  return {
+    name: section.name,
+    total: items.length,
+    open,
+    done,
+    items,
+  };
+}
+
 function summarizeSections(sections) {
-  const totals = sections.reduce(
+  return sections.reduce(
     (accumulator, section) => {
       accumulator.sections += 1;
       accumulator.total += section.total;
@@ -156,8 +225,6 @@ function summarizeSections(sections) {
     },
     { sections: 0, total: 0, open: 0, done: 0 },
   );
-
-  return totals;
 }
 
 function formatListMessage(sections, counts, filterSection) {
@@ -173,6 +240,12 @@ function formatListMessage(sections, counts, filterSection) {
     lines.push("", `## ${section.name}`);
     for (const item of section.items) {
       lines.push(`- [${item.checked ? "x" : " "}] #${item.id} ${item.text}`);
+      for (const note of item.notes ?? []) {
+        lines.push(`  - note: ${note}`);
+      }
+      for (const subtask of item.subtasks ?? []) {
+        lines.push(`  - [${subtask.checked ? "x" : " "}] (${subtask.index}) ${subtask.text}`);
+      }
     }
   }
 
@@ -182,7 +255,11 @@ function formatListMessage(sections, counts, filterSection) {
 function createActionResult(document, action, options = {}) {
   const sections = (options.sections ?? document.sections.map(buildSectionView)).map((section) => ({
     ...section,
-    items: section.items.map((item) => ({ ...item })),
+    items: section.items.map((item) => ({
+      ...item,
+      notes: [...(item.notes ?? [])],
+      subtasks: (item.subtasks ?? []).map((subtask) => ({ ...subtask })),
+    })),
   }));
   const counts = summarizeSections(sections);
   const summary = `${counts.open} open, ${counts.done} done across ${counts.sections} section${counts.sections === 1 ? "" : "s"}`;
@@ -195,6 +272,7 @@ function createActionResult(document, action, options = {}) {
       action,
       affectedItem: options.affectedItem ? { ...options.affectedItem } : undefined,
       affectedItems: options.affectedItems?.map((item) => ({ ...item })),
+      affectedSubtask: options.affectedSubtask ? { ...options.affectedSubtask } : undefined,
       counts,
       filterSection: options.filterSection,
       sections,
@@ -210,34 +288,63 @@ export function parseTodoMarkdown(markdown = "") {
   };
 
   let currentSection = null;
+  let currentTask = null;
   let sawTitle = false;
 
   for (const rawLine of markdown.replace(/\r\n/g, "\n").split("\n")) {
-    const line = rawLine.trimEnd();
+    const line = rawLine.replace(/\t/g, "  ").trimEnd();
+    const leading = line.match(/^\s*/)?.[0].length ?? 0;
+    const trimmed = line.trimStart();
 
-    if (!sawTitle) {
-      const titleMatch = line.match(/^#\s+(.+?)\s*$/);
+    if (!trimmed) continue;
+
+    if (!sawTitle && leading === 0) {
+      const titleMatch = trimmed.match(/^#\s+(.+?)\s*$/);
       if (titleMatch) {
         document.title = sanitizeSingleLine(titleMatch[1]) || DEFAULT_TITLE;
         sawTitle = true;
+        currentTask = null;
         continue;
       }
     }
 
-    const sectionMatch = line.match(/^##+\s+(.+?)\s*$/);
-    if (sectionMatch) {
-      currentSection = ensureSection(document, sectionMatch[1]);
+    if (leading === 0) {
+      const sectionMatch = trimmed.match(/^##+\s+(.+?)\s*$/);
+      if (sectionMatch) {
+        currentSection = ensureSection(document, sectionMatch[1]);
+        currentTask = null;
+        continue;
+      }
+
+      const taskMatch = trimmed.match(/^[*-]\s+\[( |x|X)\]\s+(.*?)(?:\s*<!--\s*pi-todo-md:id=(\d+)\s*-->)?\s*$/);
+      if (taskMatch) {
+        if (!currentSection) currentSection = ensureSection(document, DEFAULT_SECTION);
+        currentTask = createTask(taskMatch[3] ? Number(taskMatch[3]) : undefined, taskMatch[2], taskMatch[1].toLowerCase() === "x");
+        currentSection.items.push(currentTask);
+        continue;
+      }
+
+      currentTask = null;
       continue;
     }
 
-    const taskMatch = line.match(/^\s*[-*]\s+\[( |x|X)\]\s+(.*?)(?:\s*<!--\s*pi-todo-md:id=(\d+)\s*-->)?\s*$/);
-    if (taskMatch) {
-      if (!currentSection) currentSection = ensureSection(document, DEFAULT_SECTION);
-      currentSection.items.push({
-        id: taskMatch[3] ? Number(taskMatch[3]) : undefined,
-        text: normalizeTaskText(taskMatch[2]),
-        checked: taskMatch[1].toLowerCase() === "x",
+    if (!currentTask) continue;
+
+    const subtaskMatch = trimmed.match(/^[*-]\s+\[( |x|X)\]\s+(.+?)\s*$/);
+    if (subtaskMatch) {
+      currentTask.subtasks.push({
+        text: normalizeTaskText(subtaskMatch[2]),
+        checked: subtaskMatch[1].toLowerCase() === "x",
       });
+      continue;
+    }
+
+    const noteText = trimmed
+      .replace(/^[*-]\s+/, "")
+      .replace(/^note:\s*/i, "");
+    const normalizedNote = sanitizeSingleLine(noteText);
+    if (normalizedNote) {
+      currentTask.notes.push(normalizedNote);
     }
   }
 
@@ -259,6 +366,11 @@ export function parseTodoMarkdown(markdown = "") {
       }
       usedIds.add(item.id);
       nextId = Math.max(nextId, item.id + 1);
+      item.notes = [...(item.notes ?? [])];
+      item.subtasks = (item.subtasks ?? []).map((subtask) => ({
+        text: normalizeTaskText(subtask.text),
+        checked: Boolean(subtask.checked),
+      }));
     }
   }
 
@@ -277,6 +389,12 @@ export function renderTodoMarkdown(document) {
     lines.push(`## ${normalizeSectionName(section.name)}`);
     for (const item of section.items) {
       lines.push(`- [${item.checked ? "x" : " "}] ${normalizeTaskText(item.text)} <!-- ${ID_MARKER_PREFIX}${item.id} -->`);
+      for (const note of item.notes ?? []) {
+        lines.push(`  - note: ${sanitizeSingleLine(note)}`);
+      }
+      for (const subtask of item.subtasks ?? []) {
+        lines.push(`  - [${subtask.checked ? "x" : " "}] ${normalizeTaskText(subtask.text)}`);
+      }
     }
     if (index !== normalized.sections.length - 1) lines.push("");
   });
@@ -308,17 +426,13 @@ export function applyTodoAction(document, params) {
 
     case "add": {
       const section = ensureSection(workingDocument, params.section);
-      const item = {
-        id: getNextId(workingDocument),
-        text: normalizeTaskText(params.text),
-        checked: false,
-      };
+      const item = createTask(getNextId(workingDocument), params.text, false);
       const targetIndex = insertItem(section.items, item, normalizeIndex(params.index));
 
       return createActionResult(workingDocument, action, {
         changed: true,
         message: `Added #${item.id} to ${section.name}${targetIndex === 0 ? " at the top" : ""}: ${item.text}`,
-        affectedItem: { ...item, section: section.name },
+        affectedItem: { ...buildTaskView(item, section.name), section: section.name },
       });
     }
 
@@ -330,14 +444,10 @@ export function applyTodoAction(document, params) {
       let lastIndex = section.items.length;
 
       texts.forEach((text, offset) => {
-        const item = {
-          id: getNextId(workingDocument),
-          text,
-          checked: false,
-        };
+        const item = createTask(getNextId(workingDocument), text, false);
         const insertionIndex = startIndex === undefined ? undefined : startIndex + offset;
         lastIndex = insertItem(section.items, item, insertionIndex);
-        addedItems.push({ ...item, section: section.name });
+        addedItems.push({ ...buildTaskView(item, section.name), section: section.name });
       });
 
       return createActionResult(workingDocument, action, {
@@ -363,7 +473,7 @@ export function applyTodoAction(document, params) {
         message: alreadyInState
           ? `Task #${found.item.id} is already ${desiredState ? "checked" : "unchecked"}.`
           : `${desiredState ? "Checked" : "Unchecked"} #${found.item.id}: ${found.item.text}`,
-        affectedItem: { ...found.item, section: found.section.name },
+        affectedItem: { ...buildTaskView(found.item, found.section.name), section: found.section.name },
       });
     }
 
@@ -378,7 +488,158 @@ export function applyTodoAction(document, params) {
         message: changed
           ? `Renamed #${found.item.id} in ${found.section.name}: ${found.item.text}`
           : `Task #${found.item.id} already has that text.`,
-        affectedItem: { ...found.item, section: found.section.name },
+        affectedItem: { ...buildTaskView(found.item, found.section.name), section: found.section.name },
+      });
+    }
+
+    case "set_note": {
+      const found = findItem(workingDocument, params.id);
+      const notes = normalizeNoteLines(params.text);
+      const changed = JSON.stringify(found.item.notes ?? []) !== JSON.stringify(notes);
+      found.item.notes = notes;
+
+      return createActionResult(workingDocument, action, {
+        changed,
+        message: changed
+          ? `Updated notes on #${found.item.id} in ${found.section.name}.`
+          : `Task #${found.item.id} already has those notes.`,
+        affectedItem: { ...buildTaskView(found.item, found.section.name), section: found.section.name },
+      });
+    }
+
+    case "append_note": {
+      const found = findItem(workingDocument, params.id);
+      const notes = normalizeNoteLines(params.text);
+      found.item.notes.push(...notes);
+
+      return createActionResult(workingDocument, action, {
+        changed: true,
+        message: `Added ${notes.length} note line${notes.length === 1 ? "" : "s"} to #${found.item.id} in ${found.section.name}.`,
+        affectedItem: { ...buildTaskView(found.item, found.section.name), section: found.section.name },
+      });
+    }
+
+    case "clear_note": {
+      const found = findItem(workingDocument, params.id);
+      const noteCount = (found.item.notes ?? []).length;
+      found.item.notes = [];
+
+      return createActionResult(workingDocument, action, {
+        changed: noteCount > 0,
+        message:
+          noteCount > 0
+            ? `Cleared notes on #${found.item.id} in ${found.section.name}.`
+            : `Task #${found.item.id} does not have notes.`,
+        affectedItem: { ...buildTaskView(found.item, found.section.name), section: found.section.name },
+      });
+    }
+
+    case "add_subtask": {
+      const found = findItem(workingDocument, params.id);
+      const subtask = {
+        text: normalizeTaskText(params.text),
+        checked: false,
+      };
+      found.item.subtasks.push(subtask);
+      const index = found.item.subtasks.length;
+
+      return createActionResult(workingDocument, action, {
+        changed: true,
+        message: `Added subtask ${index} to #${found.item.id} in ${found.section.name}: ${subtask.text}`,
+        affectedItem: { ...buildTaskView(found.item, found.section.name), section: found.section.name },
+        affectedSubtask: {
+          index,
+          text: subtask.text,
+          checked: subtask.checked,
+          parentId: found.item.id,
+          section: found.section.name,
+        },
+      });
+    }
+
+    case "check_subtask":
+    case "uncheck_subtask": {
+      const desiredState = action === "check_subtask";
+      const found = findItem(workingDocument, params.id);
+      const located = findSubtask(found.item, params.subtask);
+      const alreadyInState = located.subtask.checked === desiredState;
+      located.subtask.checked = desiredState;
+
+      return createActionResult(workingDocument, action, {
+        changed: !alreadyInState,
+        message: alreadyInState
+          ? `Subtask ${located.index + 1} on #${found.item.id} is already ${desiredState ? "checked" : "unchecked"}.`
+          : `${desiredState ? "Checked" : "Unchecked"} subtask ${located.index + 1} on #${found.item.id}: ${located.subtask.text}`,
+        affectedItem: { ...buildTaskView(found.item, found.section.name), section: found.section.name },
+        affectedSubtask: {
+          index: located.index + 1,
+          text: located.subtask.text,
+          checked: located.subtask.checked,
+          parentId: found.item.id,
+          section: found.section.name,
+        },
+      });
+    }
+
+    case "remove_subtask": {
+      const found = findItem(workingDocument, params.id);
+      const located = findSubtask(found.item, params.subtask);
+      const [removed] = found.item.subtasks.splice(located.index, 1);
+
+      return createActionResult(workingDocument, action, {
+        changed: true,
+        message: `Removed subtask ${located.index + 1} from #${found.item.id} in ${found.section.name}: ${removed.text}`,
+        affectedItem: { ...buildTaskView(found.item, found.section.name), section: found.section.name },
+        affectedSubtask: {
+          index: located.index + 1,
+          text: removed.text,
+          checked: removed.checked,
+          parentId: found.item.id,
+          section: found.section.name,
+        },
+      });
+    }
+
+    case "archive_done": {
+      const filterSection = params.section ? normalizeSectionName(params.section) : undefined;
+      const archiveSection = findSection(workingDocument, ARCHIVE_SECTION);
+      const movedItems = [];
+
+      for (const section of workingDocument.sections) {
+        if (section.name.toLowerCase() === ARCHIVE_SECTION.toLowerCase()) continue;
+        if (filterSection && section.name.toLowerCase() !== filterSection.toLowerCase()) continue;
+
+        const remaining = [];
+        for (const item of section.items) {
+          if (item.checked) {
+            movedItems.push({ item, from: section.name });
+          } else {
+            remaining.push(item);
+          }
+        }
+        section.items = remaining;
+      }
+
+      if (movedItems.length === 0) {
+        return createActionResult(workingDocument, action, {
+          changed: false,
+          message: filterSection
+            ? `No completed tasks to archive from ${filterSection}.`
+            : "No completed tasks to archive.",
+        });
+      }
+
+      const targetSection = archiveSection ?? ensureSection(workingDocument, ARCHIVE_SECTION);
+      const affectedItems = [];
+      for (const moved of movedItems) {
+        targetSection.items.push(moved.item);
+        affectedItems.push({ ...buildTaskView(moved.item, ARCHIVE_SECTION), section: ARCHIVE_SECTION, from: moved.from });
+      }
+
+      return createActionResult(workingDocument, action, {
+        changed: true,
+        message: `Archived ${movedItems.length} completed task${movedItems.length === 1 ? "" : "s"} to ${ARCHIVE_SECTION}.`,
+        affectedItems,
       });
     }
 
@@ -389,7 +650,7 @@ export function applyTodoAction(document, params) {
       return createActionResult(workingDocument, action, {
         changed: true,
         message: `Removed #${removed.id} from ${found.section.name}: ${removed.text}`,
-        affectedItem: { ...removed, section: found.section.name },
+        affectedItem: { ...buildTaskView(removed, found.section.name), section: found.section.name },
       });
     }
 
@@ -402,7 +663,7 @@ export function applyTodoAction(document, params) {
       return createActionResult(workingDocument, action, {
         changed: true,
         message: `Moved #${moved.id} to ${targetSection.name} at position ${targetIndex + 1}: ${moved.text}`,
-        affectedItem: { ...moved, section: targetSection.name },
+        affectedItem: { ...buildTaskView(moved, targetSection.name), section: targetSection.name },
       });
     }
 
@@ -418,7 +679,7 @@ export function applyTodoAction(document, params) {
         message: changed
           ? `Moved #${moved.id} to the top of ${targetSection.name}: ${moved.text}`
           : `Task #${moved.id} is already at the top of ${targetSection.name}.`,
-        affectedItem: { ...moved, section: targetSection.name },
+        affectedItem: { ...buildTaskView(moved, targetSection.name), section: targetSection.name },
       });
     }
 

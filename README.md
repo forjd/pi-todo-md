@@ -11,8 +11,8 @@ A shareable [pi](https://www.npmjs.com/package/@mariozechner/pi-coding-agent) pa
 - finds the nearest `TODO.md` in the current directory or a parent directory
 - creates `TODO.md` at the git repo root when none exists yet
 - keeps stable task IDs with hidden HTML comments
-- supports sections, reordering, bulk add, rename, check/uncheck, and prioritize
-- adds an interactive `/todos [section]` browser inside pi
+- supports sections, reordering, bulk add, rename, notes, subtasks, check/uncheck, archive, and prioritize
+- adds an interactive `/todos [section]` browser inside pi with keyboard actions
 
 ## Install
 
@@ -36,7 +36,10 @@ After installing, start `pi` in your project and ask things like:
 - `Add a task to TODO.md to publish the plugin`
 - `Add these tasks to TODO.md: write docs, record demo, publish package`
 - `Rename task #2 to finish README polish`
+- `Add a note to task #2 saying publish after the docs land`
+- `Add subtasks to #2 for writing docs and publishing the package`
 - `Mark task #2 as done`
+- `Archive all completed tasks`
 - `Move task #3 to In Progress`
 - `Prioritize task #5`
 - `/todos`
@@ -54,11 +57,29 @@ The extension registers a tool named `todo_md`.
 | `check` | `id` | — | Mark a task done |
 | `uncheck` | `id` | — | Mark a task not done |
 | `rename` | `id`, `text` | — | Change task text |
+| `set_note` | `id`, `text` | — | Replace a task's note text |
+| `append_note` | `id`, `text` | — | Append note line(s) to a task |
+| `clear_note` | `id` | — | Remove all notes from a task |
+| `add_subtask` | `id`, `text` | — | Add a subtask to a task |
+| `check_subtask` | `id`, `subtask` | — | Mark a subtask done |
+| `uncheck_subtask` | `id`, `subtask` | — | Mark a subtask not done |
+| `remove_subtask` | `id`, `subtask` | — | Delete a subtask |
+| `archive_done` | — | `section` | Move completed tasks into `Archive` |
 | `remove` | `id` | — | Delete a task |
 | `move` | `id` | `section`, `index` | Move a task to another section or position |
 | `prioritize` | `id` | `section` | Move a task to the top of a section |
 
-There is also a `/todos [section]` command for a quick interactive view.
+There is also a `/todos [section]` command for an interactive view. Inside the browser you can use:
+
+- `↑↓` or `j/k` to move
+- `x` to toggle the selected task or subtask
+- `r` to rename a task
+- `n` to edit a task note
+- `s` to add a subtask
+- `p` to prioritize a task
+- `d` to delete the selected task or subtask
+- `a` to archive completed tasks
+- `o` to toggle done items on and off
 
 ## Managed file format
 
@@ -69,10 +90,16 @@ There is also a `/todos [section]` command for a quick interactive view.
 
 ## Tasks
 - [ ] ship the plugin <!-- pi-todo-md:id=1 -->
+  - note: publish after trusted publishing works
+  - [ ] write docs
+  - [ ] publish package
 - [x] read the docs <!-- pi-todo-md:id=2 -->
 
 ## In Progress
 - [ ] package it for sharing <!-- pi-todo-md:id=3 -->
+
+## Archive
+- [x] initial release <!-- pi-todo-md:id=4 -->
 ```
 
 The hidden `<!-- pi-todo-md:id=... -->` markers keep task IDs stable across edits.
